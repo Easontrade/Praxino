@@ -32,6 +32,14 @@ jobs:
           name: build-log
           path: build.log
 
+      - name: Show build error
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path build.log) {
+            Get-Content build.log -Tail 40 | ForEach-Object { Write-Output "::error::$_" }
+          }
+
       - name: Test (with QuickJS)
         shell: pwsh
         run: |

@@ -469,6 +469,7 @@ class _PlayerPageState extends State<PlayerPage> {
       builder: (context) => SubtitleSearchDialog(
         videoPath: source,
         title: p.basenameWithoutExtension(source),
+        settings: widget.settings,
       ),
     );
     if (path != null) await _loadSubtitle(path);

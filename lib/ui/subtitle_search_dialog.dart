@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../core/settings/settings_store.dart';
 import '../core/subtitles/assrt_provider.dart';
 import '../core/subtitles/opensubtitles_provider.dart';
 import '../core/subtitles/subtitle_provider.dart';
@@ -14,11 +15,13 @@ class SubtitleSearchDialog extends StatefulWidget {
     super.key,
     required this.videoPath,
     required this.title,
+    this.settings,
     this.providers,
   });
 
   final String videoPath;
   final String title;
+  final SettingsStore? settings;
   final List<SubtitleProvider>? providers;
 
   @override
@@ -34,15 +37,24 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
   bool _busy = false;
   String? _error;
 
-  static List<SubtitleProvider> _defaultProviders() {
+  List<SubtitleProvider> _defaultProviders() {
     final providers = <SubtitleProvider>[];
     final assrt = Platform.environment['PRAXINO_ASSRT_TOKEN'];
     if (assrt != null && assrt.isNotEmpty) {
       providers.add(AssrtProvider(token: assrt));
     }
-    final open = Platform.environment['PRAXINO_OPENSUBTITLES_API_KEY'];
-    if (open != null && open.isNotEmpty) {
-      providers.add(OpenSubtitlesProvider(apiKey: open));
+    final settings = widget.settings;
+    final openKey = settings?.openSubtitlesApiKey ??
+        Platform.environment['PRAXINO_OPENSUBTITLES_API_KEY'];
+    if (openKey != null && openKey.isNotEmpty) {
+      providers.add(OpenSubtitlesProvider(
+        apiKey: openKey,
+        token: settings?.openSubtitlesToken,
+        appVersion: const String.fromEnvironment(
+          'APP_VERSION',
+          defaultValue: '0.1.0',
+        ),
+      ));
     }
     return providers;
   }

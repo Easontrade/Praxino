@@ -46,6 +46,26 @@ class SubtitleException implements Exception {
   String toString() => message;
 }
 
+class SubtitleAuthException extends SubtitleException {
+  const SubtitleAuthException(super.message);
+}
+
+class SubtitleQuotaException extends SubtitleException {
+  const SubtitleQuotaException(super.message);
+}
+
+class OpenSubtitlesLogin {
+  const OpenSubtitlesLogin({
+    required this.token,
+    this.remainingDownloads,
+    this.userId,
+  });
+
+  final String token;
+  final int? remainingDownloads;
+  final int? userId;
+}
+
 abstract interface class SubtitleProvider {
   String get id;
   String get name;

@@ -8,15 +8,18 @@ import 'subtitle_provider.dart';
 class OpenSubtitlesProvider implements SubtitleProvider {
   OpenSubtitlesProvider({
     required this.apiKey,
-    this.userAgent = 'Praxino v1',
+    this.appVersion = '0.1.0',
+    String? userAgent,
     this.token,
     http.Client? client,
     this.baseUrl = 'https://api.opensubtitles.com/api/v1',
-  }) : _client = client ?? http.Client();
+  })  : _userAgent = userAgent ?? 'Praxino v$appVersion',
+        _client = client ?? http.Client();
 
   final String apiKey;
-  final String userAgent;
-  final String? token;
+  final String appVersion;
+  final String _userAgent;
+  String? token;
   final String baseUrl;
   final http.Client _client;
 
@@ -28,10 +31,46 @@ class OpenSubtitlesProvider implements SubtitleProvider {
 
   Map<String, String> get _headers => {
         'Api-Key': apiKey,
-        'User-Agent': userAgent,
+        'User-Agent': _userAgent,
         'Accept': 'application/json',
         if (token != null && token!.isNotEmpty) 'Authorization': 'Bearer $token',
       };
+
+  /// Logs in and stores the token for later downloads.
+  Future<OpenSubtitlesLogin> login({
+    required String username,
+    required String password,
+  }) async {
+    final http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {..._headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      );
+    } on Exception catch (error) {
+      throw SubtitleException('OpenSubtitles 登录失败：$error');
+    }
+    if (response.statusCode >= 400) {
+      throw SubtitleAuthException(
+        'OpenSubtitles 登录失败：HTTP ${response.statusCode}',
+      );
+    }
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map || decoded['token'] is! String) {
+      throw const SubtitleAuthException('OpenSubtitles 没有返回 token');
+    }
+    token = decoded['token'] as String;
+    return OpenSubtitlesLogin(
+      token: token!,
+      remainingDownloads: decoded['remaining_downloads'] is num
+          ? (decoded['remaining_downloads'] as num).toInt()
+          : null,
+      userId: decoded['user_id'] is num
+          ? (decoded['user_id'] as num).toInt()
+          : null,
+    );
+  }
 
   @override
   Future<List<SubtitleCandidate>> search(SubtitleQuery query) async {
@@ -81,6 +120,12 @@ class OpenSubtitlesProvider implements SubtitleProvider {
       headers: {..._headers, 'Content-Type': 'application/json'},
       body: jsonEncode({'file_id': fileId}),
     );
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw const SubtitleAuthException('OpenSubtitles token 已过期，请重新登录');
+    }
+    if (response.statusCode == 406 || response.statusCode == 429) {
+      throw const SubtitleQuotaException('OpenSubtitles 下载额度已用完');
+    }
     if (response.statusCode >= 400) {
       throw SubtitleException('OpenSubtitles 下载 HTTP ${response.statusCode}');
     }
@@ -90,7 +135,7 @@ class OpenSubtitlesProvider implements SubtitleProvider {
     }
     final link = decoded['link'] as String;
     final file = await _client.get(Uri.parse(link), headers: {
-      'User-Agent': userAgent,
+      'User-Agent': _userAgent,
     });
     if (file.statusCode >= 400) {
       throw SubtitleException('字幕文件 HTTP ${file.statusCode}');

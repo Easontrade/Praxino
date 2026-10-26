@@ -8,6 +8,7 @@ import '../core/enhance/enhance_pack.dart';
 import '../core/enhance/enhance_pack_paths.dart';
 import '../core/settings/keybindings.dart';
 import '../core/settings/settings_store.dart';
+import '../core/subtitles/opensubtitles_provider.dart';
 import '../core/update/update_checker.dart';
 import 'key_chord_ui.dart';
 import 'offline_tasks_page.dart';
@@ -62,6 +63,89 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _openSubtitles() async {
+    final apiKey = TextEditingController(
+      text: widget.settings.openSubtitlesApiKey,
+    );
+    final username = TextEditingController(
+      text: widget.settings.openSubtitlesUsername,
+    );
+    final password = TextEditingController(
+      text: widget.settings.openSubtitlesPassword,
+    );
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('OpenSubtitles'),
+        content: SizedBox(
+          width: 620,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: apiKey,
+                decoration: const InputDecoration(labelText: 'API Key'),
+              ),
+              TextField(
+                controller: username,
+                decoration: const InputDecoration(labelText: '用户名'),
+              ),
+              TextField(
+                controller: password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '密码'),
+              ),
+              const SizedBox(height: 8),
+              const Text('登录后下载额度约每天 20 次；不登录仍可匿名搜索。'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('登录并保存'),
+          ),
+        ],
+      ),
+    );
+    if (saved == true) {
+      final provider = OpenSubtitlesProvider(
+        apiKey: apiKey.text.trim(),
+        appVersion:
+            const String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0'),
+      );
+      try {
+        final login = await provider.login(
+          username: username.text.trim(),
+          password: password.text,
+        );
+        await widget.settings.setOpenSubtitlesCredentials(
+          apiKey: apiKey.text.trim(),
+          username: username.text.trim(),
+          password: password.text,
+          token: login.token,
+        );
+        if (mounted) {
+          _toast(login.remainingDownloads == null
+              ? 'OpenSubtitles 登录成功'
+              : 'OpenSubtitles 登录成功，剩余下载 ${login.remainingDownloads} 次');
+          setState(() {});
+        }
+      } on Exception catch (error) {
+        if (mounted) _toast('$error');
+      } finally {
+        provider.close();
+      }
+    }
+    apiKey.dispose();
+    username.dispose();
+    password.dispose();
   }
 
   Future<void> _dandanplayCredentials() async {
@@ -414,6 +498,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   : '已配置 AppId',
             ),
             onTap: _dandanplayCredentials,
+          ),
+          ListTile(
+            leading: const Icon(Icons.closed_caption_outlined),
+            title: const Text('OpenSubtitles'),
+            subtitle: Text(
+              widget.settings.openSubtitlesApiKey.isEmpty
+                  ? '未配置 API Key'
+                  : widget.settings.openSubtitlesToken.isEmpty
+                      ? '已配置 API Key，未登录'
+                      : '已登录',
+            ),
+            onTap: _openSubtitles,
           ),
           ListTile(
             leading: const Icon(Icons.movie_filter_outlined),

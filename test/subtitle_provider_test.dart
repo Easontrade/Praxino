@@ -60,6 +60,72 @@ void main() {
     provider.close();
   });
 
+  test('OpenSubtitles login stores a token for downloads', () async {
+    final client = MockClient((request) async {
+      if (request.url.path == '/api/v1/login') {
+        expect(request.headers['User-Agent'], 'Praxino v0.1.0');
+        return _json({
+          'token': 'jwt-token',
+          'user_id': 7,
+          'remaining_downloads': 20,
+        });
+      }
+      if (request.url.path == '/api/v1/download') {
+        expect(request.headers['Authorization'], 'Bearer jwt-token');
+        return _json({'link': 'https://example.test/sub.srt'});
+      }
+      if (request.url.path == '/sub.srt') {
+        return http.Response('subtitle', 200);
+      }
+      return http.Response('nope', 404);
+    });
+    final provider = OpenSubtitlesProvider(apiKey: 'key', client: client);
+
+    final login = await provider.login(username: 'u', password: 'p');
+    expect(login.token, 'jwt-token');
+    expect(login.remainingDownloads, 20);
+    final bytes = await provider.download(
+      const SubtitleCandidate(
+        provider: 'opensubtitles',
+        id: '1',
+        title: 't',
+        language: 'zh',
+        format: 'srt',
+        extra: {'file_id': 7},
+      ),
+    );
+    expect(utf8.decode(bytes), 'subtitle');
+    provider.close();
+  });
+
+  test('OpenSubtitles distinguishes expired tokens and quota', () async {
+    final cases = {
+      401: isA<SubtitleAuthException>(),
+      429: isA<SubtitleQuotaException>(),
+    };
+    for (final entry in cases.entries) {
+      final provider = OpenSubtitlesProvider(
+        apiKey: 'key',
+        token: 'token',
+        client: MockClient((_) async => http.Response('', entry.key)),
+      );
+      await expectLater(
+        provider.download(
+          const SubtitleCandidate(
+            provider: 'opensubtitles',
+            id: '1',
+            title: 't',
+            language: 'zh',
+            format: 'srt',
+            extra: {'file_id': 7},
+          ),
+        ),
+        throwsA(entry.value),
+      );
+      provider.close();
+    }
+  });
+
   test('ASSRT searches and downloads a direct URL', () async {
     final client = MockClient((request) async {
       if (request.url.path == '/v1/sub/search') {

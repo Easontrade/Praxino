@@ -1,5 +1,5 @@
 param(
-    [string]$Exe = (Join-Path (Split-Path -Parent $PSScriptRoot) "build\windows\x64\runner\Release\praxino.exe"),
+    [string]$Exe = (Join-Path (Split-Path -Parent $PSScriptRoot) "build\windows\x64\runner\Debug\praxino.exe"),
     [int]$WaitSeconds = 6
 )
 
@@ -113,3 +113,4 @@ $windows = 0
 $code = [PraxinoHiddenDesktop]::Run($Exe, $WaitSeconds * 1000, [ref]$windows)
 Write-Output "hidden_desktop_exit=$code windows=$windows"
 exit $code
+

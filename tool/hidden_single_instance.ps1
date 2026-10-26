@@ -1,5 +1,5 @@
 param(
-    [string]$Exe = (Join-Path (Split-Path -Parent $PSScriptRoot) "build\windows\x64\runner\Release\praxino.exe")
+    [string]$Exe = (Join-Path (Split-Path -Parent $PSScriptRoot) "build\windows\x64\runner\Debug\praxino.exe")
 )
 
 Add-Type -TypeDefinition @"
@@ -82,3 +82,4 @@ $code = [PraxinoSingleInstance]::Run($Exe, [ref]$windows, [ref]$secondExited)
 Write-Output "single_instance_exit=$code windows=$windows second_exited=$secondExited"
 if ($code -ne 0 -or -not $secondExited) { exit 1 }
 exit 0
+

@@ -42,6 +42,18 @@ class SettingsStore {
   static const _extraSourcesKey = 'extra_sources.v1';
   static const _dandanAppIdKey = 'danmaku.appId.v1';
   static const _dandanSecretKey = 'danmaku.appSecret.v1';
+  static const _openApiKeyKey = 'subtitle.openApiKey.v1';
+  static const _openUsernameKey = 'subtitle.openUsername.v1';
+  static const _openPasswordKey = 'subtitle.openPassword.v1';
+  static const _openTokenKey = 'subtitle.openToken.v1';
+  static const _builtDandanAppId =
+      String.fromEnvironment('DANDANPLAY_APP_ID');
+  static const _builtDandanAppSecret =
+      String.fromEnvironment('DANDANPLAY_APP_SECRET');
+  static const _builtDandanAppIdB64 =
+      String.fromEnvironment('DANDANPLAY_APP_ID_B64');
+  static const _builtDandanAppSecretB64 =
+      String.fromEnvironment('DANDANPLAY_APP_SECRET_B64');
   static const _offlineJobsKey = 'offline.jobs.v1';
   static const _offlineFfmpegKey = 'offline.ffmpeg.v1';
   static const _offlineEsrganKey = 'offline.esrgan.v1';
@@ -118,19 +130,71 @@ class SettingsStore {
     }
   }
 
-  String get dandanplayAppId =>
-      _prefs.getString(_dandanAppIdKey) ??
-      Platform.environment['PRAXINO_DANDAN_APP_ID'] ??
-      '';
+  String get dandanplayAppId {
+    final saved = _prefs.getString(_dandanAppIdKey);
+    if (saved != null && saved.isNotEmpty) return saved;
+    final env = Platform.environment['PRAXINO_DANDAN_APP_ID'];
+    if (env != null && env.isNotEmpty) return env;
+    return _decodeBuilt(_builtDandanAppIdB64, _builtDandanAppId);
+  }
 
-  String get dandanplayAppSecret =>
-      _prefs.getString(_dandanSecretKey) ??
-      Platform.environment['PRAXINO_DANDAN_APP_SECRET'] ??
-      '';
+  String get dandanplayAppSecret {
+    final saved = _prefs.getString(_dandanSecretKey);
+    if (saved != null && saved.isNotEmpty) return saved;
+    final env = Platform.environment['PRAXINO_DANDAN_APP_SECRET'];
+    if (env != null && env.isNotEmpty) return env;
+    return _decodeBuilt(_builtDandanAppSecretB64, _builtDandanAppSecret);
+  }
+
+  /// Build-time secrets are base64 encoded by the release workflow. This is
+  /// obfuscation, not a security boundary; it only keeps plain text out of the
+  /// binary's strings.
+  static String _decodeBuilt(String encoded, String fallback) {
+    if (encoded.isEmpty) return fallback;
+    try {
+      return utf8.decode(base64Decode(encoded));
+    } on FormatException {
+      return '';
+    }
+  }
 
   Future<void> setDandanplayCredentials(String appId, String secret) async {
     await _prefs.setString(_dandanAppIdKey, appId);
     await _prefs.setString(_dandanSecretKey, secret);
+  }
+
+  String get openSubtitlesApiKey {
+    final saved = _prefs.getString(_openApiKeyKey);
+    if (saved != null && saved.isNotEmpty) return saved;
+    return Platform.environment['PRAXINO_OPENSUBTITLES_API_KEY'] ?? '';
+  }
+
+  String get openSubtitlesUsername =>
+      _prefs.getString(_openUsernameKey) ?? '';
+  String get openSubtitlesPassword =>
+      _prefs.getString(_openPasswordKey) ?? '';
+  String get openSubtitlesToken => _prefs.getString(_openTokenKey) ?? '';
+
+  Future<void> setOpenSubtitlesCredentials({
+    required String apiKey,
+    required String username,
+    required String password,
+    String? token,
+  }) async {
+    await _prefs.setString(_openApiKeyKey, apiKey);
+    await _prefs.setString(_openUsernameKey, username);
+    await _prefs.setString(_openPasswordKey, password);
+    if (token != null && token.isNotEmpty) {
+      await _prefs.setString(_openTokenKey, token);
+    }
+  }
+
+  Future<void> setOpenSubtitlesToken(String? token) async {
+    if (token == null || token.isEmpty) {
+      await _prefs.remove(_openTokenKey);
+    } else {
+      await _prefs.setString(_openTokenKey, token);
+    }
   }
 
   DanmakuMatchStore get danmakuMatches => DanmakuMatchStore(_prefs);

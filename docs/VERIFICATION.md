@@ -7,7 +7,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `flutter analyze` | 0 issue |
-| `flutter test` | 179 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 185 全通过 |
+| `flutter test` | 181 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 187 全通过 |
 | `flutter build windows --debug` | 成功 |
 | `flutter build windows --release` | 成功 |
 | Inno Setup 安装包编译 | 成功；最终 SHA256 `836fbabbf8dde50d0d80dac6ee7e380b701462d2b63357a7635741f16eac54ae` |
@@ -29,7 +29,7 @@
 | 弹幕布局性能 | 已验证 | 1000 条/分钟、600 帧平均低于 8ms/帧 |
 | GPU 离线处理 | 已验证（1 分钟） | 1080p 60 秒 → 4K 48fps，862.8 秒，55,977,622 字节，音轨保留 |
 | VapourSynth 运行时 | 已验证（独立） | `vspipe` 与 mpv `vapoursynth` filter 实际执行 `.vpy`；mvtools 30→60fps 脚本通过 |
-| 在线字幕 | 已验证（Mock） | ASSRT / OpenSubtitles 搜索、下载、落盘 |
+| 在线字幕 | 已验证（Mock） | ASSRT / OpenSubtitles 搜索、下载、落盘；OpenSubtitles 登录、token 过期、额度用完 |
 | 更新检查 | 已验证（Mock） | 新版本、同/旧版本、跳过、网络错误 |
 | 隐藏桌面启动 | 已验证 | 独立桌面启动，窗口创建成功，不占用可见桌面 |
 

@@ -6,7 +6,7 @@
 每张卡的格式：**目标 / 涉及文件 / 做法 / 验收标准**。验收标准全部满足才算完成。
 每张卡完成后都必须：`flutter analyze` 无问题、`flutter test` 全部通过、一个 Conventional Commit。
 
-状态：✅ 完成 ⏳ 待做
+状态：✅ 完成　🟡 部分完成（卡片内注明缺口）　⏳ 待做　⛔ 不在当前范围
 
 在线源不依赖任何外部项目：Kazumi 规则只作为**可选的输入格式**和手动测试数据；
 可靠性、弹幕匹配等策略都由本项目自己实现，不复制、不移植外部代码。
@@ -28,7 +28,7 @@
 
 ## M1 本地播放打磨（最高优先级）
 
-### M1-1 快捷键与焦点 ⏳
+### M1-1 快捷键与焦点 ✅
 - **目标**：播放页里 `Ctrl+0~3`、`Ctrl+E` 一定能生效，并补齐常用键。
 - **文件**：`lib/ui/player_page.dart`、`lib/core/player/praxino_player.dart`
 - **做法**：
@@ -47,7 +47,7 @@
 - **验收**：每个新快捷键按下都有 SnackBar 反馈，并且实际生效；播放页里按空格会暂停，不会触发别的按钮；
   media_kit 的默认键在改过快捷键表之后仍然可用。
 
-### M1-2 续播 ⏳
+### M1-2 续播 ✅
 - **目标**：重新打开同一个文件时，从上次的位置继续播放。
 - **文件**：`lib/core/library/watch_history.dart`（新建）、`lib/core/settings/settings_store.dart`、
   `lib/ui/player_page.dart`、`test/watch_history_test.dart`（新建）
@@ -56,21 +56,21 @@
   最多保留 500 条，按时间淘汰。
 - **验收**：单测覆盖淘汰逻辑和"接近结尾不续播"的判断；手动关掉再开，确实从上次位置继续。
 
-### M1-3 播放列表侧栏 ⏳
+### M1-3 播放列表侧栏 ✅
 - **目标**：播放页右侧可展开的选集面板，显示同目录的所有集，当前集高亮，点击切换。
 - **文件**：`lib/ui/playlist_panel.dart`（新建）、`lib/ui/player_page.dart`
 - **做法**：数据来自 `player.stream.playlist`；按钮放在底栏，快捷键 `L`；
   切集后保持当前画质设置（由 `PraxinoPlayer.setEnhance` 负责）。
 - **验收**：10 集以上的文件夹能正常滚动，当前集高亮正确，切集后超分设置不变。
 
-### M1-4 轨道菜单 ⏳
+### M1-4 轨道菜单 ✅
 - **目标**：底栏增加音轨/字幕轨选择菜单（含"关闭字幕"和"第二字幕"）。
 - **文件**：`lib/ui/track_menu.dart`（新建）、`lib/ui/player_page.dart`、`lib/core/player/praxino_player.dart`
 - **做法**：数据来自 `player.state.tracks`；在 `PraxinoPlayer` 加 `setAudioTrack` / `setSubtitleTrack` /
   `setSecondarySubtitleTrack`；第二字幕用 mpv 属性 `secondary-sid`；关闭字幕用 `SubtitleTrack.no()`。
 - **验收**：双语 MKV 能同时显示中英两条字幕；关闭字幕再打开能恢复。
 
-### M1-5 文件关联和单实例 ⏳
+### M1-5 文件关联和单实例 ✅
 - **目标**：Windows 下双击视频用 Praxino 打开；已打开时把文件交给现有窗口，而不是再开一个窗口。
 - **文件**：`windows/runner/main.cpp`、`windows/runner/flutter_window.{h,cpp}`、
   `windows/runner/utils.cpp`、`lib/core/platform/single_instance.dart`（新建）、`lib/main.dart`
@@ -94,7 +94,7 @@
   `vo=null`/`ao=null`）和 ffmpeg 解码 300 帧均无报错；不修改 demuxer，保留为历史观察。
 - **验收**：有结论；如果能修就修，修不了要在文档里写明原因和影响范围。
 
-### M1-7 设置页与快捷键自定义 ⏳
+### M1-7 设置页与快捷键自定义 ✅
 - **目标**：设置页可以查看/修改播放器快捷键，修改立即生效并持久化；
   后续路径、凭据、画质默认值也放在这里。
 - **文件**：`lib/ui/settings_page.dart`（新建）、
@@ -115,7 +115,7 @@
 
 ## M2 画质增强进阶
 
-### M2-1 真人片超分预设 ⏳
+### M2-1 真人片超分预设 ✅
 - **目标**：增加适合实拍片的超分（Anime4K 会把实拍画面涂抹）。
 - **文件**：`lib/core/enhance/enhance_settings.dart`、`assets/shaders/fsrcnnx/`（新建，含 LICENSE）、
   `lib/core/player/praxino_player.dart`、`lib/ui/enhance_menu.dart`、`test/core_test.dart`
@@ -128,7 +128,9 @@
 - **验收**：单测覆盖新预设的属性生成和路径顺序；1080p 实拍片手动对比，开关前后差异可见、没有涂抹感；
   `flutter analyze` / `flutter test` 通过。
 
-### M2-2 自动选择预设 ⏳
+### M2-2 自动选择预设 🟡
+
+> 🟡 部分完成：降档策略有单测；未在真实掉帧的核显上验证。
 - **目标**：根据片源分辨率和显卡性能推荐档位，用户可以覆盖。
 - **文件**：`lib/core/enhance/enhance_advisor.dart`（新建，纯函数）、
   `lib/core/player/praxino_player.dart`（暴露帧率和掉帧统计）、
@@ -138,7 +140,9 @@
   用户手动选过之后 30 分钟内不再自动改；降到"关闭"为止。
 - **验收**：单测覆盖降档规则和用户覆盖；在核显上播 1080p 选"高质量"，10 秒内自动降档并提示。
 
-### M2-3 增强包与补帧（RIFE / mvtools） ⏳
+### M2-3 增强包与补帧（RIFE / mvtools） 🟡
+
+> 🟡 部分完成：增强包下载/校验、脚本路径、CLI mvtools 已验证；应用内补帧受 libmpv client API 2.1/2.6 兼容性阻塞。
 - **目标**：通过可选的"增强包"让 mpv 支持 VapourSynth，实现实时补帧。设计见 ARCHITECTURE §5.2。
 - **文件**：`lib/core/enhance/enhance_pack.dart`（新建：下载/校验/安装）、
   `lib/core/enhance/interpolation.dart`（新建：vf 组合与 vpy 参数）、
@@ -157,7 +161,9 @@
 - **验收**：24fps 片源开启后，`estimated-vf-fps` 约等于显示器刷新率；关闭后能恢复；
   降噪和补帧可以同时开启且两者都生效；增强包缺失/校验失败时不影响普通播放。
 
-### M2-4 画质对比模式 ⏳
+### M2-4 画质对比模式 🟡
+
+> 🟡 部分完成：对比状态与播放器接线有单测；未做实际画面目测。
 - **目标**：按住某个键时显示原始画面（松开恢复），用来对比增强效果。
 - **文件**：`lib/core/player/praxino_player.dart`、`lib/ui/player_page.dart`
 - **做法**：按住时暂存当前 `glsl-shaders` 再清空，松开时写回；对比期间不要改动持久化的 `EnhanceSettings`；
@@ -168,7 +174,7 @@
 
 ## M3 在线源
 
-### M3-1 SourceRegistry 与订阅 ⏳
+### M3-1 SourceRegistry 与订阅 ✅
 - **目标**：用户添加订阅 URL → 下载 JSON → 解析成若干 `SourceAdapter` → 本地缓存 → 可启用/禁用。
 - **文件**：`lib/core/sources/source_registry.dart`（已实现并发搜索，订阅待接）、
   `lib/core/sources/subscription.dart`（新建）、
@@ -181,7 +187,7 @@
 - **验收**：单测用 `MockClient` 覆盖：下载成功、解析失败的条目跳过但不影响其它条目、版本比较、
   启用/禁用持久化；测试不访问网络。
 
-### M3-2 搜索页与详情页 ⏳
+### M3-2 搜索页与详情页 ✅
 - **目标**：首页增加"在线"标签：搜索框 → 对所有启用的源并发搜索（每个源单独超时 10s）→
   结果按源分组 → 点进去选线路和集数。
 - **文件**：`lib/core/sources/search_service.dart`（新建）、`lib/ui/search_page.dart`（新建）、
@@ -191,7 +197,9 @@
   UI 据此排序或筛选；结果为空、全部失败、加载中都要有明确状态。
 - **验收**：一个源超时不影响其它源出结果；单测用假适配器覆盖超时、异常、空结果。
 
-### M3-3 StreamSniffer（WebView2） ⏳
+### M3-3 StreamSniffer（WebView2） 🟡
+
+> 🟡 部分完成：WebView2 后端与详情页接入完成；未用 3 个私有源实播验证。
 - **目标**：`resolve()` 返回 null 的源，用隐藏的 WebView2 加载播放页，
   捕获第一个 `.m3u8`/`.mp4` 请求（含 iframe 里的）。
 - **文件**：`lib/core/sources/sniffer/webview_sniffer.dart`（新建）、`lib/ui/player_page.dart`、
@@ -202,7 +210,9 @@
 - **验收**：用私有测试规则（见 `AGENTS.local.md`）手动测试（只作测试数据，
   **不要把规则提交进仓库**），至少 3 个源能播放；超时返回 null 并由 UI 提示；纯逻辑（URL 判定/请求头合并）有单测。
 
-### M3-4 可靠性策略（自己实现） ⏳
+### M3-4 可靠性策略（自己实现） 🟡
+
+> 🟡 部分完成：标题匹配/探测/切换/预取有单测；未做断网 5 秒的真实故障切换。
 - **目标**：搜索排序、源探测、自动选源、故障切换、下一集预取。
 - **文件**：`lib/core/sources/reliability/title_match.dart`、
   `lib/core/sources/reliability/source_prober.dart`、
@@ -222,7 +232,9 @@
 - **验收**：单测覆盖打分和切换逻辑；手动测试时断网 5 秒能自动换源继续播；
   预取失败不影响当前集播放。
 
-### M3-5 yt-dlp 适配器 ⏳
+### M3-5 yt-dlp 适配器 🟡
+
+> 🟡 部分完成：Mock 覆盖格式选择；未用真实公开视频手动验证。
 - **目标**：粘贴任意视频页链接就能播放。
 - **文件**：`lib/core/sources/ytdlp/ytdlp_adapter.dart`（新建）、
   `lib/core/process/process_runner.dart`（新建，可注入，便于测试）、
@@ -234,7 +246,7 @@
 - **验收**：单测模拟 yt-dlp 输出的 JSON（单流/分离流/多格式）；手动测一个公开视频能播；
   找不到 exe 时有提示而不是崩溃。
 
-### M3-6 TVBox（苹果 CMS 接口）适配器 ⏳
+### M3-6 TVBox（苹果 CMS 接口）适配器 ✅
 - **目标**：兼容 TVBox 配置里 `type: 0`（XML）和 `type: 1`（JSON）的 `api` 站点。
 - **文件**：`lib/core/sources/tvbox/tvbox_adapter.dart`（新建）、
   `test/tvbox_adapter_test.dart`、`test/fixtures/tvbox/*.xml`、`*.json`（新建，示例域名用 `example.test`）
@@ -246,7 +258,7 @@
 
 ## M4 弹幕与更多源
 
-### M4-1 弹幕渲染层 ⏳
+### M4-1 弹幕渲染层 ✅
 - **目标**：在 `Video` 之上叠一层弹幕：滚动、顶部、底部三种；可调透明度、字号、显示区域、密度。
 - **文件**：`lib/core/danmaku/danmaku_engine.dart`（新建，纯调度：轨道分配/时间窗口/密度上限）、
   `lib/ui/danmaku/danmaku_overlay.dart`（新建，CustomPainter + Ticker）、
@@ -256,7 +268,9 @@
 - **验收**：1000 条/分钟的弹幕下仍能稳定 60fps（用 Flutter DevTools 查看）；
   seek 后没有残影；单测覆盖轨道分配和密度上限。
 
-### M4-2 弹弹play 提供者 ⏳
+### M4-2 弹弹play 提供者 🟡
+
+> 🟡 部分完成：客户端/匹配/凭证/UI 完成；缺少审核通过后的真实 AppId 在线验证。
 - **目标**：本地文件和在线剧集都能匹配到弹幕。
 - **文件**：`lib/core/danmaku/dandanplay_provider.dart`（新建）、
   `lib/core/danmaku/danmaku_matcher.dart`（新建）、`lib/core/settings/settings_store.dart`（凭证）、
@@ -270,7 +284,9 @@
 - **验收**：本地番剧文件能自动匹配；手动选过的匹配下次直接使用；凭证缺失时有提示；
   单测用 `MockClient` 覆盖命中/失败/记忆。
 
-### M4-3 Stremio addon 适配器 ⏳
+### M4-3 Stremio addon 适配器 🟡
+
+> 🟡 部分完成：adapter 与管理 UI 完成；未接真实 addon 验证。
 - **目标**：通过 Stremio addon 的 HTTP 协议获取剧集和流。
 - **文件**：`lib/core/sources/stremio/stremio_adapter.dart`（新建）、
   `test/stremio_adapter_test.dart`（新建）
@@ -278,7 +294,9 @@
   只接受 http(s) 的 addon 地址；解析 stream 的 URL 和 headers；超时和错误按 M3-2 的约定聚合。
 - **验收**：fixture 覆盖 manifest/catalog/stream；一个公开 addon 手动测试能播。
 
-### M4-4 脚本源（QuickJS 沙箱） ⏳
+### M4-4 脚本源（QuickJS 沙箱） 🟡
+
+> 🟡 部分完成：QuickJS 沙箱与脚本 adapter 已验证；没有真实脚本源做端到端。
 - **目标**：支持用脚本写的小型源，但**不执行任意远程代码**。
 - **文件**：`lib/core/sources/script/script_adapter.dart`（新建）、
   `lib/core/sources/script/quickjs_host.dart`（新建，FFI）、
@@ -292,7 +310,9 @@
 
 ## M5 字幕与离线处理
 
-### M5-1 在线字幕搜索（ASSRT、OpenSubtitles） ⏳
+### M5-1 在线字幕搜索（ASSRT、OpenSubtitles） 🟡
+
+> 🟡 部分完成：provider/落盘/设置完成；没有真实 ASSRT/OpenSubtitles 账号验证。
 - **目标**：按标题/季/集搜索字幕，下载到视频同目录的 `subs/` 并自动加载。
 - **文件**：`lib/core/subtitles/subtitle_provider.dart`（新建接口）、
   `lib/core/subtitles/assrt_provider.dart`、`lib/core/subtitles/opensubtitles_provider.dart`（新建）、
@@ -304,7 +324,7 @@
 - **验收**：`MockClient` 覆盖搜索/下载/失败；手动搜索并加载一条字幕；
   下载的文件出现在 `subs/` 且能被 libass 加载。
 
-### M5-2 离线超分 / 补帧任务队列 ⏳
+### M5-2 离线超分 / 补帧任务队列 ✅
 - **目标**：后台批量处理视频，输出增强后的新文件，可暂停/继续/取消。
 - **文件**：`lib/core/enhance/offline/offline_job.dart`、
   `lib/core/enhance/offline/offline_queue.dart`、
@@ -321,7 +341,7 @@
 
 ## M6 发布
 
-### M6-1 安装包与文件关联 ⏳
+### M6-1 安装包与文件关联 ✅
 - **目标**：MSIX 或 Inno Setup 安装包，注册文件关联，卸载干净。
 - **文件**：`installer/praxino.iss`（新建）或 `msix/`（新建）、`windows/runner/Runner.rc`、
   `.github/workflows/ci.yml`
@@ -329,14 +349,18 @@
   检测/引导安装 VC++ 运行库；卸载时清理关联和缓存。
 - **验收**：干净虚拟机安装 → 双击视频用 Praxino 打开 → 卸载后关联和安装目录都清理干净。
 
-### M6-2 GitHub Release 自动发布 ⏳
+### M6-2 GitHub Release 自动发布 🟡
+
+> 🟡 部分完成：本地 release、安装包、SHA256 已验证；GitHub tag 发布未执行。
 - **目标**：打 tag 自动构建安装包并发布 Release。
 - **文件**：`.github/workflows/release.yml`（新建）、`installer/`、`README.md`
 - **做法**：tag `v*` 触发：`flutter analyze` + `flutter test` + `flutter build windows --release`
   + 生成安装包 + 上传 Release；附 SHA256 校验文件。
 - **验收**：打一个测试 tag 后 Release 有安装包和校验文件；CI 全绿；校验和能对上。
 
-### M6-3 自动更新检查 ⏳
+### M6-3 自动更新检查 🟡
+
+> 🟡 部分完成：Mock 覆盖更新检查；未用真实 GitHub Release 触发 UI 验证。
 - **目标**：启动时检查新版本，提示用户去下载。
 - **文件**：`lib/core/update/update_checker.dart`（新建）、`lib/ui/settings_page.dart`（修改）、
   `test/update_checker_test.dart`（新建）
@@ -344,7 +368,9 @@
   只提示，不自动下载安装。
 - **验收**：`MockClient` 覆盖有新版本/无更新/网络错误；手动能弹出提示。
 
-### M6-4 Android 端 ⏳
+### M6-4 Android 端 ⛔
+
+> ⛔ 不在当前范围：只做 Windows，不做 Android。
 - **目标**：在架构不推翻的前提下跑通 Android 本地播放。
 - **文件**：`android/`（新建）、`pubspec.yaml`、`lib/core/player/praxino_player.dart`（平台分支）、
   `lib/main.dart`、`.github/workflows/ci.yml`

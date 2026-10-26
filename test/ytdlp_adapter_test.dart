@@ -29,8 +29,17 @@ ProcessOutput _out(Object json, {int exitCode = 0}) => ProcessOutput(
 const _combined = {
   'title': '示例视频',
   'subtitles': {
-    'zh-Hans': [],
-    'en': [],
+    'zh-Hans': [
+      {'url': 'https://example.test/zh.vtt', 'ext': 'vtt'}
+    ],
+    'en': [
+      {'url': 'https://example.test/en.vtt', 'ext': 'vtt'}
+    ],
+  },
+  'automatic_captions': {
+    'ja': [
+      {'url': 'https://example.test/ja.vtt'}
+    ]
   },
   'formats': [
     {
@@ -84,7 +93,10 @@ void main() {
     expect(stream.height, 1080);
     expect(stream.bitrateKbps, 3000);
     expect(stream.headers['Referer'], 'https://example.test/');
-    expect(stream.subtitleLanguages, containsAll(['zh-Hans', 'en']));
+    expect(stream.subtitleLanguages, containsAll(['zh-Hans', 'en', 'ja']));
+    expect(stream.subtitleLanguages.first, 'zh-Hans');
+    expect(stream.subtitleUrls['zh-Hans'], 'https://example.test/zh.vtt');
+    expect(stream.subtitleUrls['ja'], 'https://example.test/ja.vtt');
   });
 
   test('falls back to video + separate audio', () async {

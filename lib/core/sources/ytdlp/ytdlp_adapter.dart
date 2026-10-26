@@ -156,7 +156,7 @@ class YtDlpAdapter implements SourceAdapter {
         if (entry.value is String) headers['${entry.key}'] = entry.value as String;
       }
     }
-    final subtitles = data['subtitles'];
+    final subtitleUrls = _subtitleTracks(data);
     return PlayableStream(
       format['url'] as String,
       headers: headers,
@@ -166,10 +166,41 @@ class YtDlpAdapter implements SourceAdapter {
       bitrateKbps: format['tbr'] is num
           ? (format['tbr'] as num).round()
           : null,
-      subtitleLanguages:
-          subtitles is Map ? subtitles.keys.map((key) => '$key').toList() : const [],
+      subtitleLanguages: subtitleUrls.keys.toList(),
+      subtitleUrls: subtitleUrls,
       audioUrl: audioUrl,
     );
+  }
+
+  static Map<String, String> _subtitleTracks(Map<String, dynamic> data) {
+    final tracks = <String, String>{};
+    for (final key in ['subtitles', 'automatic_captions']) {
+      final raw = data[key];
+      if (raw is! Map) continue;
+      for (final entry in raw.entries) {
+        if (tracks.containsKey('${entry.key}')) continue;
+        final value = entry.value;
+        if (value is! List) continue;
+        for (final candidate in value) {
+          if (candidate is Map &&
+              candidate['url'] is String &&
+              (candidate['url'] as String).startsWith('http')) {
+            tracks['${entry.key}'] = candidate['url'] as String;
+            break;
+          }
+        }
+      }
+    }
+    final keys = tracks.keys.toList()
+      ..sort((a, b) => _subtitleRank(a).compareTo(_subtitleRank(b)));
+    return {for (final key in keys) key: tracks[key]!};
+  }
+
+  static int _subtitleRank(String language) {
+    final lower = language.toLowerCase();
+    if (lower.startsWith('zh') || lower.contains('chinese')) return 0;
+    if (lower.startsWith('en')) return 1;
+    return 2;
   }
 }
 

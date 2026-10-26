@@ -57,6 +57,7 @@ class PlayableStream {
     this.height,
     this.bitrateKbps,
     this.subtitleLanguages = const [],
+    this.subtitleUrls = const {},
     this.audioUrl,
   });
 
@@ -70,6 +71,9 @@ class PlayableStream {
 
   /// Language tags/labels the stream carries, e.g. `zh-Hans`, `en`.
   final List<String> subtitleLanguages;
+
+  /// Language tag to subtitle URL, ordered with Chinese first when available.
+  final Map<String, String> subtitleUrls;
 
   /// Separate audio URL when the source only offers video-only + audio-only
   /// formats; the player attaches it as mpv's `audio-files`.

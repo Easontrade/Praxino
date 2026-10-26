@@ -176,7 +176,7 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 | `MediaSummary` | 一条搜索结果（标题、详情页定位、来源 id） |
 | `EpisodeGroup` | 一条"线路"，含若干 `Episode` |
 | `Episode` | 一集（名字、播放页定位） |
-| `PlayableStream` | mpv 能直接打开的地址 + 请求头（Referer/UA/Cookie），可选带 width/height/bitrateKbps/subtitleLanguages 供画质与字幕选择 |
+| `PlayableStream` | mpv 能直接打开的地址 + 请求头（Referer/UA/Cookie），可选带 width/height/bitrateKbps/subtitleLanguages/subtitleUrls 供画质与字幕选择；yt-dlp 字幕优先中文 |
 | `StreamSniffer` | 播放页需要执行 JS 才能拿到流地址时，用浏览器加载并抓取请求 |
 
 ### 6.3 适配器清单

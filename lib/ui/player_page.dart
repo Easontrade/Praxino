@@ -176,6 +176,14 @@ class _PlayerPageState extends State<PlayerPage> {
       stream.url,
       httpHeaders: stream.headers.isEmpty ? null : stream.headers,
     ));
+    final subtitle = stream.subtitleUrls.values.firstOrNull;
+    if (subtitle != null) {
+      try {
+        await _player.addExternalSubtitle(subtitle);
+      } catch (_) {
+        // A missing subtitle must not interrupt playback.
+      }
+    }
   }
 
   Future<void> _switchNext({required bool hadError}) async {

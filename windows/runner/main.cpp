@@ -51,11 +51,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
       GetCommandLineArguments();
 
   bool hidden = false;
+#ifndef NDEBUG
   for (const auto& argument : command_line_arguments) {
     if (argument == "--hidden") {
       hidden = true;
     }
   }
+#endif
 
   HANDLE mutex = ::CreateMutexW(nullptr, FALSE, kMutexName);
   if (mutex != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {

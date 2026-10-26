@@ -19,8 +19,14 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test
       - run: flutter build windows --release
+
+      - name: Test (with QuickJS)
+        shell: pwsh
+        run: |
+          $dll = Resolve-Path 'build/windows/x64/runner/Release/flutter_qjs_next_plugin.dll'
+          $env:FLUTTER_QJS_NEXT_LIBRARY = $dll.Path
+          flutter test
 
       - uses: actions/upload-artifact@v4
         with:

@@ -43,6 +43,7 @@
   3. 新增：`Z`/`X` 字幕延迟 −/+0.1s（mpv 属性 `sub-delay`）、`[`/`]` 播放速度 ±0.1（`speed`）、
      `S` 截图（mpv 命令 `screenshot`，存到"图片/Praxino"）。
      这些都要先在 `PraxinoPlayer` 里加方法，UI 只调方法。
+  4. 把快捷键集中到一张表里（动作 → 按键），不要散落在 `build` 里；M1-7 会接设置页并持久化。
 - **验收**：每个新快捷键按下都有 SnackBar 反馈，并且实际生效；播放页里按空格会暂停，不会触发别的按钮；
   media_kit 的默认键在改过快捷键表之后仍然可用。
 
@@ -82,14 +83,33 @@
 - **验收**：连续两次 `praxino.exe a.mkv`、`praxino.exe b.mkv`，只有一个窗口，并且在播 b；
   路径含中文/空格也能正确传递。
 
-### M1-6 排查 MP4 的 NAL 报错 ⏳
+### M1-6 排查 MP4 的 NAL 报错 ✅
 - **目标**：查清播放带 `bin_data` 数据轨的 MP4 时日志刷屏 `Invalid NAL unit size` /
   `missing picture in access unit` 的原因（独立版 mpv 播同一文件没有这些报错，画面目前正常）。
 - **文件**：`lib/core/player/praxino_player.dart`（若需要调整 demuxer 选项）、
   `docs/ARCHITECTURE.md`（把结论写进"已知无害日志"或修复说明）
 - **做法**：先试 mpv 选项 `--vid`/`--aid`/`--sid`、`--demuxer-lavf-o=…` 排除数据轨，再试 `hwdec=no` 对照，
   确定是 media_kit 自带 ffmpeg 的问题还是参数问题。
+- **结论**：无窗口无法复现。独立 mpv 0.41、media_kit 自带 libmpv 0.36（FFmpeg n6.0，
+  `vo=null`/`ao=null`）和 ffmpeg 解码 300 帧均无报错；不修改 demuxer，保留为历史观察。
 - **验收**：有结论；如果能修就修，修不了要在文档里写明原因和影响范围。
+
+### M1-7 设置页与快捷键自定义 ⏳
+- **目标**：设置页可以查看/修改播放器快捷键，修改立即生效并持久化；
+  后续路径、凭据、画质默认值也放在这里。
+- **文件**：`lib/ui/settings_page.dart`（新建）、
+  `lib/core/settings/keybindings.dart`（新建：动作/默认键/序列化）、
+  `lib/core/settings/settings_store.dart`、`lib/ui/home_page.dart`（入口）、
+  `lib/ui/player_page.dart`、`test/keybindings_test.dart`（新建）
+- **做法**：
+  1. 定义 `PlayerAction` 枚举和默认绑定表；键用可序列化的描述（如 `ctrl+1`、`space`），
+     UI 层再转成 `SingleActivator`，`core` 不依赖 Flutter 控件。
+  2. 设置页列出动作、当前键和"重置"；录制新键时检测冲突（同一组合只能绑一个动作），
+     冲突时提示并拒绝保存。
+  3. 保存到 `SettingsStore`（JSON）；播放页启动时读取，未知动作或无法解析的键忽略并回退默认。
+  4. 先只做播放器动作；画质默认值、yt-dlp 路径、弹幕/字幕凭据后续加到同一页面。
+- **验收**：改键后播放页立即生效，重启后仍在；冲突有提示且不能保存；重置恢复默认；
+  单测覆盖序列化、冲突和回退。
 
 ---
 
@@ -125,7 +145,7 @@
   `assets/vapoursynth/*.vpy`（新建）、`lib/main.dart`（启动时选择 libmpv）、
   `lib/ui/enhance_menu.dart`、`test/enhance_pack_test.dart`（新建）
 - **做法**：拆成五步，各自提交：
-  1. 先验证：用当前 libmpv 试 `vf=vapoursynth`（或看 `mpv --version` 的编译选项），
+  1. 先验证：用当前 libmpv 试 `vf=vapoursynth`（或看 `mpv --list-filters` 里有没有 vapoursynth），
      确认是否真的不支持；如果支持，直接跳到第 3 步。
   2. 增强包下载器和版本校验（SHA256）：清单包含 URL、版本、哈希；下载到
      `%APPDATA%/Praxino/enhance-pack/`；校验失败删除并报错。
@@ -150,9 +170,10 @@
 
 ### M3-1 SourceRegistry 与订阅 ⏳
 - **目标**：用户添加订阅 URL → 下载 JSON → 解析成若干 `SourceAdapter` → 本地缓存 → 可启用/禁用。
-- **文件**：`lib/core/sources/source_registry.dart`（新建）、`lib/core/sources/subscription.dart`（新建）、
+- **文件**：`lib/core/sources/source_registry.dart`（已实现并发搜索，订阅待接）、
+  `lib/core/sources/subscription.dart`（新建）、
   `lib/core/storage/app_database.dart`（新建，drift）、`lib/core/settings/settings_store.dart`、
-  `pubspec.yaml`、`test/source_registry_test.dart`（新建）
+  `pubspec.yaml`、`test/source_registry_test.dart`（已建）
 - **做法**：可选地兼容 KazumiRules 的规则列表格式（`plugins.json` 那种规则数组）和单个规则 JSON；
   这只是输入格式，不引入对 Kazumi 代码的依赖；格式探测按字段判断；
   下载后按 `name` + `version` 去重；缓存带 `fetchedAt` 和 `etag`；
@@ -165,8 +186,9 @@
   结果按源分组 → 点进去选线路和集数。
 - **文件**：`lib/core/sources/search_service.dart`（新建）、`lib/ui/search_page.dart`（新建）、
   `lib/ui/media_detail_page.dart`（新建）、`lib/ui/home_page.dart`、`test/search_service_test.dart`（新建）
-- **做法**：并发用 `Future.wait` 加单独 `timeout`；单个源出错只在它的分组里显示错误，不影响其它源；
-  结果为空、全部失败、加载中都要有明确状态。
+- **做法**：用 `SourceRegistry.search` 的流式结果，每个源单独超时；单个源出错只在它的分组里显示错误，
+  不影响其它源；结果里的 `PlayableStream` 可带 height/bitrateKbps/subtitleLanguages，
+  UI 据此排序或筛选；结果为空、全部失败、加载中都要有明确状态。
 - **验收**：一个源超时不影响其它源出结果；单测用假适配器覆盖超时、异常、空结果。
 
 ### M3-3 StreamSniffer（WebView2） ⏳
@@ -205,7 +227,7 @@
 - **文件**：`lib/core/sources/ytdlp/ytdlp_adapter.dart`（新建）、
   `lib/core/process/process_runner.dart`（新建，可注入，便于测试）、
   `lib/core/settings/settings_store.dart`（yt-dlp 路径）、`test/ytdlp_adapter_test.dart`（新建）
-- **做法**：查找 `yt-dlp.exe`（设置里可配路径；同目录/PATH 兜底；找不到时提示下载），
+- **做法**：查找 `yt-dlp.exe`（同目录/PATH 优先；自定义路径在 M1-7 设置页补；找不到时提示下载），
   运行 `yt-dlp -J --no-playlist <url>`（用 `Process.run` 参数列表，不拼 shell），
   选最佳的"视频+音频"格式；音视频分离时用 mpv 的 `audio-files` 属性挂上音频；
   超时、退出码、JSON 解析错误都要有明确错误信息。
@@ -244,7 +266,7 @@
   2. 先查本地记忆（key → 提供者/集 id），没有再调提供者搜索；搜索失败回退到标题搜索。
   3. 用户手动选择后写入记忆（带时间戳），下次优先使用；提供者返回失效时清除记忆并重新搜索。
   4. AppId/Secret 从环境变量 `PRAXINO_DANDAN_APP_ID` / `PRAXINO_DANDAN_APP_SECRET`
-     或设置页读取，**不提交到仓库**。
+     读取（设置页在 M1-7 再补可视化配置），**不提交到仓库**。
 - **验收**：本地番剧文件能自动匹配；手动选过的匹配下次直接使用；凭证缺失时有提示；
   单测用 `MockClient` 覆盖命中/失败/记忆。
 
@@ -277,7 +299,8 @@
   `lib/ui/subtitle_search_dialog.dart`（新建）、`lib/ui/player_page.dart`、
   `test/subtitle_provider_test.dart`（新建）
 - **做法**：搜索 → 按语言/格式/评分排序 → 下载 → 保存为 `<视频名>.<语言>.<ext>`；
-  token/API key 从设置或环境变量读取；请求限流；失败时给出可读错误。
+  凭据从环境变量读取（`PRAXINO_ASSRT_TOKEN` / `PRAXINO_OPENSUBTITLES_API_KEY`；
+  设置页在 M1-7 再补）；请求限流；失败时给出可读错误。
 - **验收**：`MockClient` 覆盖搜索/下载/失败；手动搜索并加载一条字幕；
   下载的文件出现在 `subs/` 且能被 libass 加载。
 
@@ -315,7 +338,7 @@
 
 ### M6-3 自动更新检查 ⏳
 - **目标**：启动时检查新版本，提示用户去下载。
-- **文件**：`lib/core/update/update_checker.dart`（新建）、`lib/ui/settings_page.dart`（新建）、
+- **文件**：`lib/core/update/update_checker.dart`（新建）、`lib/ui/settings_page.dart`（修改）、
   `test/update_checker_test.dart`（新建）
 - **做法**：请求 GitHub Releases API；semver 比较；支持"跳过这个版本"；失败静默；
   只提示，不自动下载安装。

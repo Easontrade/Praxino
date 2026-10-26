@@ -6,8 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/library/local_files.dart';
+import '../core/platform/single_instance.dart';
 import '../core/settings/settings_store.dart';
+import 'online_page.dart';
 import 'player_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.settings, this.initialSource});
@@ -27,10 +30,30 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    SingleInstance.listen(_openExternal);
     final source = widget.initialSource;
     if (source != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) =>
           source.contains('://') ? _play([source]) : _playLocal(source));
+    }
+  }
+
+  @override
+  void dispose() {
+    SingleInstance.stop();
+    super.dispose();
+  }
+
+  /// A second app instance forwarded a file or URL.
+  void _openExternal(List<String> arguments) {
+    final source = arguments
+        .where((argument) => isVideoFile(argument) || argument.contains('://'))
+        .firstOrNull;
+    if (source == null || !mounted) return;
+    if (source.contains('://')) {
+      _play([source]);
+    } else {
+      _playLocal(source);
     }
   }
 
@@ -93,6 +116,12 @@ class _HomePageState extends State<HomePage> {
     if (url != null && url.trim().isNotEmpty) _play([url.trim()]);
   }
 
+  Future<void> _openOnline() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => OnlinePage(settings: widget.settings),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -114,7 +143,22 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Praxino', style: Theme.of(context).textTheme.headlineMedium),
+              Row(
+                children: [
+                  Text('Praxino',
+                      style: Theme.of(context).textTheme.headlineMedium),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: '设置',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SettingsPage(settings: widget.settings),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 24),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -136,19 +180,25 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 12),
                     const Text('把视频拖到这里，同文件夹的剧集会自动排成播放列表'),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
                       children: [
                         FilledButton.icon(
                           onPressed: _pickFile,
                           icon: const Icon(Icons.folder_open),
                           label: const Text('打开文件'),
                         ),
-                        const SizedBox(width: 12),
                         OutlinedButton.icon(
                           onPressed: _openUrl,
                           icon: const Icon(Icons.link),
                           label: const Text('打开链接'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _openOnline,
+                          icon: const Icon(Icons.public),
+                          label: const Text('在线搜索'),
                         ),
                       ],
                     ),

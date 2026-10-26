@@ -1,11 +1,19 @@
 #include "flutter_window.h"
 
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
+
 #include <optional>
+#include <string>
 
 #include "flutter/generated_plugin_registrant.h"
 
-FlutterWindow::FlutterWindow(const flutter::DartProject& project)
-    : project_(project) {}
+namespace {
+constexpr ULONG_PTR kCopyDataMagic = 0x50524158;
+}  // namespace
+
+FlutterWindow::FlutterWindow(const flutter::DartProject& project, bool hidden)
+    : project_(project), hidden_(hidden) {}
 
 FlutterWindow::~FlutterWindow() {}
 
@@ -25,10 +33,15 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  channel_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "praxino/single_instance",
+      &flutter::StandardMethodCodec::GetInstance());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+  flutter_controller_->engine()->SetNextFrameCallback([this]() {
+    if (!hidden_) {
+      this->Show();
+    }
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -40,6 +53,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -51,6 +65,19 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // A second instance forwards its command line here.
+  if (message == WM_COPYDATA) {
+    auto* data = reinterpret_cast<COPYDATASTRUCT*>(lparam);
+    if (data != nullptr && data->dwData == kCopyDataMagic &&
+        data->lpData != nullptr && channel_) {
+      std::string payload(static_cast<const char*>(data->lpData),
+                          static_cast<size_t>(data->cbData));
+      channel_->InvokeMethod(
+          "open", std::make_unique<flutter::EncodableValue>(payload));
+    }
+    return TRUE;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

@@ -4,8 +4,10 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_drop
+  flutter_qjs_next
   media_kit_libs_windows_video
   media_kit_video
+  webview_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

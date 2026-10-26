@@ -5,6 +5,8 @@
 /// processing (Real-ESRGAN, RIFE) is a separate pipeline; see docs/ROADMAP.md.
 library;
 
+import 'interpolation.dart';
+
 /// Anime4K v4 "Mode A" chains at three cost tiers.
 ///
 /// The chains follow the upstream recommendations in
@@ -13,7 +15,8 @@ enum UpscalePreset {
   off('关闭', '原始画面，只用 mpv 的高质量缩放'),
   anime4kFast('Anime4K 流畅', '核显 / 入门独显，CNN-S'),
   anime4kBalanced('Anime4K 均衡', '主流独显，CNN-M'),
-  anime4kQuality('Anime4K 高质量', '高端独显，CNN-VL');
+  anime4kQuality('Anime4K 高质量', '高端独显，CNN-VL'),
+  fsrcnnx('FSRCNNX 实拍', '实拍片专用，减少 Anime4K 的涂抹');
 
   const UpscalePreset(this.label, this.hint);
 
@@ -47,7 +50,14 @@ enum UpscalePreset {
             'Anime4K_AutoDownscalePre_x4.glsl',
             'Anime4K_Upscale_CNN_x2_M.glsl',
           ],
+        fsrcnnx => const ['FSRCNNX_x2_16-0-4-1.glsl'],
       };
+
+  /// Asset subdirectory that holds this preset's shader files.
+  String get shaderFamily =>
+      this == UpscalePreset.fsrcnnx ? 'fsrcnnx' : 'anime4k';
+
+  bool get isLiveAction => this == UpscalePreset.fsrcnnx;
 }
 
 /// The full enhancement state of one player.
@@ -56,6 +66,7 @@ class EnhanceSettings {
     this.upscale = UpscalePreset.off,
     this.deband = false,
     this.denoise = false,
+    this.interpolation = InterpolationMode.off,
   });
 
   final UpscalePreset upscale;
@@ -68,27 +79,44 @@ class EnhanceSettings {
   /// copy-back mode.
   final bool denoise;
 
-  bool get isOff => upscale == UpscalePreset.off && !deband && !denoise;
+  /// Frame interpolation backend; it only takes effect when a VapourSynth
+  /// script is supplied to [toMpvProperties].
+  final InterpolationMode interpolation;
+
+  bool get isOff =>
+      upscale == UpscalePreset.off &&
+      !deband &&
+      !denoise &&
+      interpolation == InterpolationMode.off;
 
   EnhanceSettings copyWith({
     UpscalePreset? upscale,
     bool? deband,
     bool? denoise,
+    InterpolationMode? interpolation,
   }) =>
       EnhanceSettings(
         upscale: upscale ?? this.upscale,
         deband: deband ?? this.deband,
         denoise: denoise ?? this.denoise,
+        interpolation: interpolation ?? this.interpolation,
       );
 
   /// The mpv properties that realise these settings.
   ///
-  /// [shaderDir] is the directory holding the Anime4K shader files and
-  /// [listSeparator] is mpv's path-list separator (`;` on Windows, `:` elsewhere).
+  /// [shaderDir] is the directory holding the Anime4K shader files,
+  /// [listSeparator] is mpv's path-list separator (`;` on Windows, `:` elsewhere)
+  /// and [vapoursynthScript] is the `.vpy` path when interpolation is enabled.
   Map<String, String> toMpvProperties({
     required String shaderDir,
     required String listSeparator,
+    String? vapoursynthScript,
   }) {
+    final filters = buildVideoFilterChain(
+      denoise: denoise,
+      interpolation: interpolation,
+      vapoursynthScript: vapoursynthScript,
+    );
     return {
       'glsl-shaders': upscale.shaders
           .map((name) => '$shaderDir/$name')
@@ -97,8 +125,9 @@ class EnhanceSettings {
       if (deband) 'deband-iterations': '2',
       if (deband) 'deband-threshold': '40',
       if (deband) 'deband-grain': '16',
-      'vf': denoise ? 'lavfi=[hqdn3d=1.2:1.0:6:6]' : '',
-      'hwdec': denoise ? 'auto-copy' : 'auto-safe',
+      'vf': filters,
+      'hwdec':
+          denoise || filters.contains('vapoursynth=') ? 'auto-copy' : 'auto-safe',
     };
   }
 
@@ -106,6 +135,7 @@ class EnhanceSettings {
         'upscale': upscale.name,
         'deband': deband,
         'denoise': denoise,
+        'interpolation': interpolation.name,
       };
 
   factory EnhanceSettings.fromJson(Map<String, Object?> json) =>
@@ -116,6 +146,10 @@ class EnhanceSettings {
         ),
         deband: json['deband'] == true,
         denoise: json['denoise'] == true,
+        interpolation: InterpolationMode.values.firstWhere(
+          (m) => m.name == json['interpolation'],
+          orElse: () => InterpolationMode.off,
+        ),
       );
 
   @override
@@ -123,8 +157,9 @@ class EnhanceSettings {
       other is EnhanceSettings &&
       other.upscale == upscale &&
       other.deband == deband &&
-      other.denoise == denoise;
+      other.denoise == denoise &&
+      other.interpolation == interpolation;
 
   @override
-  int get hashCode => Object.hash(upscale, deband, denoise);
+  int get hashCode => Object.hash(upscale, deband, denoise, interpolation);
 }

@@ -5,12 +5,12 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path/path.dart' as p;
 
+import '../enhance/compare_state.dart';
 import '../enhance/enhance_settings.dart';
 
 /// mpv options every player starts with. Kept close to a hand-tuned
 /// standalone mpv.conf so behaviour matches what users already know.
-const Map<String, String> kMpvBaseline = {
-  // Subtitles: pick up `movie.zh.ass` and `subs/` next to the file.
+const Map<String, String> kMpvBaseline = {  // Subtitles: pick up `movie.zh.ass` and `subs/` next to the file.
   'sub-auto': 'fuzzy',
   'sub-file-paths': 'subs;subtitles;字幕',
   'embeddedfonts': 'yes',
@@ -24,6 +24,15 @@ const Map<String, String> kMpvBaseline = {
   'keep-open': 'yes',
   'force-seekable': 'yes',
 };
+
+/// A snapshot of mpv's video/performance properties.
+class PlaybackStats {
+  const PlaybackStats({this.height, this.fps, this.droppedFrames});
+
+  final int? height;
+  final double? fps;
+  final int? droppedFrames;
+}
 
 /// A media_kit [Player] plus the mpv-level features Praxino adds on top.
 class PraxinoPlayer {
@@ -49,6 +58,10 @@ class PraxinoPlayer {
 
   final ValueNotifier<EnhanceSettings> enhance =
       ValueNotifier(const EnhanceSettings());
+  final CompareState _compare = CompareState();
+  String? _vapoursynthScript;
+
+  bool get comparing => _compare.active;
 
   NativePlayer get _native => player.platform as NativePlayer;
 
@@ -68,35 +81,160 @@ class PraxinoPlayer {
   }
 
   /// Applies [settings] to the running player. Safe to call mid-playback.
-  Future<void> setEnhance(EnhanceSettings settings) async {
+  ///
+  /// While hold-to-compare is active the change is remembered for restore
+  /// instead of applying on top of the comparison.
+  Future<void> setEnhance(
+    EnhanceSettings settings, {
+    String? vapoursynthScript,
+  }) async {
+    _vapoursynthScript = vapoursynthScript;
+    if (_compare.active) {
+      _compare.noteSettingsChange(settings);
+      return;
+    }
+    await _applyEnhance(settings);
+  }
+
+  /// Hold-to-compare: temporarily show the original picture.
+  Future<void> beginCompare() async {
+    final off = _compare.begin(enhance.value);
+    if (off != null) await _applyEnhance(off, withScript: false);
+  }
+
+  Future<void> endCompare() async {
+    final saved = _compare.end();
+    if (saved != null) await _applyEnhance(saved);
+  }
+
+  Future<void> _applyEnhance(
+    EnhanceSettings settings, {
+    bool withScript = true,
+  }) async {
     await _ready;
+    var script = withScript ? _vapoursynthScript : null;
+    if (script != null && script.isNotEmpty) {
+      // mpv's filter parser treats ':' as an option separator, so pass a bare
+      // file name from the executable directory instead of a Windows path.
+      try {
+        final target = p.join(
+          p.dirname(Platform.resolvedExecutable),
+          '.praxino-vs.vpy',
+        );
+        await File(script).copy(target);
+        script = p.basename(target);
+      } on FileSystemException {
+        // Fall back to the original path; the filter will report the error.
+      }
+    }
     final props = settings.toMpvProperties(
-      shaderDir: shaderDirectory,
+      shaderDir: shaderDirectoryFor(settings.upscale),
       listSeparator: Platform.isWindows ? ';' : ':',
+      vapoursynthScript: script,
     );
     for (final e in props.entries) {
       await _native.setProperty(e.key, e.value);
     }
     enhance.value = settings;
     if (kDebugMode) {
+      final vf = props['vf'] ?? '';
+      try {
+        File('${Directory.systemTemp.path}${Platform.pathSeparator}'
+                'praxino-enhance.log')
+            .writeAsStringSync(
+          '${DateTime.now().toIso8601String()} vf=$vf\n',
+          mode: FileMode.append,
+          flush: true,
+        );
+      } on FileSystemException {
+        // Best-effort diagnostics only.
+      }
       final active = await _native.getProperty('glsl-shaders');
-      debugPrint('[enhance] ${settings.toJson()} shaders=$active');
+      debugPrint('[enhance] ${settings.toJson()} vf=$vf shaders=$active');
     }
   }
 
   Future<void> addExternalSubtitle(String path) =>
       player.setSubtitleTrack(SubtitleTrack.uri(path, title: p.basename(path)));
 
-  /// Directory that holds the bundled Anime4K shaders at runtime.
-  ///
-  /// Flutter desktop copies assets next to the executable, so mpv can read
-  /// them straight from disk.
-  static String get shaderDirectory {
+  Future<PlaybackStats> playbackStats() async {
+    await _ready;
+    return PlaybackStats(
+      height: int.tryParse(await _native.getProperty('video-params/h')),
+      fps: double.tryParse(await _native.getProperty('estimated-vf-fps')),
+      droppedFrames:
+          int.tryParse(await _native.getProperty('frame-drop-count')),
+    );
+  }
+
+  /// Attaches a separate audio URL (mpv `audio-files`), or clears it.
+  Future<void> setAudioFile(String? url) async {
+    await _ready;
+    await _native.setProperty('audio-files', url ?? '');
+  }
+
+  Future<void> setAudioTrack(String id) async {
+    await _ready;
+    await player.setAudioTrack(AudioTrack(id, null, null));
+  }
+
+  /// Selects a subtitle track by id, or turns subtitles off when [id] is null.
+  Future<void> setSubtitleTrack(String? id) async {
+    await _ready;
+    await player.setSubtitleTrack(
+      id == null ? SubtitleTrack.no() : SubtitleTrack(id, null, null),
+    );
+  }
+
+  /// Selects the secondary subtitle track (mpv `secondary-sid`), or off.
+  Future<void> setSecondarySubtitle(String? id) async {
+    await _ready;
+    await _native.setProperty('secondary-sid', id ?? 'no');
+  }
+
+  /// Moves mpv's subtitle delay by [delta] seconds, clamped to ±10s.
+  Future<double> adjustSubtitleDelay(double delta) async {
+    await _ready;
+    final raw = await _native.getProperty('sub-delay');
+    final current = double.tryParse(raw) ?? 0;
+    final next = (current + delta).clamp(-10.0, 10.0).toDouble();
+    await _native.setProperty('sub-delay', next.toStringAsFixed(2));
+    return next;
+  }
+
+  /// Changes playback speed by [delta], clamped to 0.25x–4x.
+  Future<double> adjustSpeed(double delta) async {
+    await _ready;
+    final next = (player.state.rate + delta).clamp(0.25, 4.0).toDouble();
+    await player.setRate(next);
+    return next;
+  }
+
+  /// Saves a PNG screenshot under `Pictures/Praxino` and returns the folder.
+  Future<String> screenshot() async {
+    await _ready;
+    final home = Platform.environment['USERPROFILE'] ??
+        Platform.environment['HOME'] ??
+        Directory.current.path;
+    final dir = Directory(p.join(home, 'Pictures', 'Praxino'));
+    await dir.create(recursive: true);
+    await _native.setProperty('screenshot-directory', dir.path);
+    await _native.setProperty('screenshot-format', 'png');
+    await _native.command(['screenshot']);
+    return dir.path;
+  }
+
+  /// Root directory of the bundled shader families at runtime.
+  static String get shaderRoot {
     final exeDir = p.dirname(Platform.resolvedExecutable);
     return p
-        .join(exeDir, 'data', 'flutter_assets', 'assets', 'shaders', 'anime4k')
+        .join(exeDir, 'data', 'flutter_assets', 'assets', 'shaders')
         .replaceAll('\\', '/');
   }
+
+  /// Directory that holds [preset]'s shader files.
+  static String shaderDirectoryFor(UpscalePreset preset) =>
+      p.join(shaderRoot, preset.shaderFamily).replaceAll('\\', '/');
 
   Future<void> dispose() async {
     enhance.dispose();

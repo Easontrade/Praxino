@@ -50,6 +50,7 @@ lib/
     enhance/enhance_settings.dart  画质增强的纯数据模型 → mpv 属性
     library/local_files.dart    本地文件识别、同目录剧集、自然排序
     settings/settings_store.dart  持久化设置
+    settings/keybindings.dart    动作 → 默认按键 + 序列化（待实现，M1-7）
     sources/
       source_adapter.dart       在线源统一接口（所有适配器都实现它）
       kazumi/                   Kazumi 规则适配器（可选）
@@ -87,8 +88,14 @@ UI ──► PraxinoPlayer ──► media_kit Player ──► libmpv
   上一集/下一集由 media_kit 原生处理。
 - **libass 开启**（`PlayerConfiguration.libass: true`）：ASS 特效字幕由 mpv 渲染进视频帧，
   所以字幕**会**经过超分着色器之后的缩放，但不会被 Anime4K 处理（Anime4K 钩在 MAIN 纹理上，字幕在 OSD 层）。
+- **快捷键**：动作集中在一张表里（动作 → 按键），后续不要在 `build` 里散落 `SingleActivator`；
+  M1-7 把这张表接到设置页，允许用户改键并持久化。
 - **已知无害日志**：`property not found _setProperty(osc, 1)`（media_kit 自身）、
   `dxva2-egl Failed to create EGL surface`（回退到 D3D11 纹理，正常）。
+- **MP4 数据轨与 NAL 报错（M1-6 结论）**：无窗口复现不了。独立 mpv 0.41、media_kit 自带的
+  libmpv 0.36（FFmpeg n6.0，`vo=null`/`ao=null`）和 ffmpeg 直接解码同一文件都没有
+  `Invalid NAL unit size` / `missing picture in access unit`。此前日志可能来自旧构建或特定渲染路径；
+  再遇到时先记录 libmpv 版本，并对比 `hwdec=no` 与 `vid=no`。
 
 ---
 
@@ -123,7 +130,7 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 自带的 libmpv 没有编译 VapourSynth 支持（M2-3 第一步先验证；如果其实支持，就省掉增强包）。方案：
 
 1. 做一个可选的"增强包"（不进安装包，首次使用时下载到 `%APPDATA%/Praxino/enhance-pack/`）：
-   带 VapourSynth 的 `libmpv-2.dll`（例如 shinchiro 的构建，需先用 `mpv --version` / 属性确认）
+   带 VapourSynth 的 `libmpv-2.dll`（例如 shinchiro 的构建，需先用 `mpv --list-filters` / 试加载确认）
    + 便携 Python + VapourSynth + `vs-rife`（TensorRT 后端）/ `mvtools`。
 2. 启动时如果增强包存在，就调用 `MediaKit.ensureInitialized(libmpv: '<增强包>/libmpv-2.dll')` 加载它
    （media_kit 1.2.6 的 `native_library.dart` 支持这个参数，也支持环境变量 `LIBMPV_LIBRARY_PATH`）。
@@ -169,7 +176,7 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 | `MediaSummary` | 一条搜索结果（标题、详情页定位、来源 id） |
 | `EpisodeGroup` | 一条"线路"，含若干 `Episode` |
 | `Episode` | 一集（名字、播放页定位） |
-| `PlayableStream` | mpv 能直接打开的地址 + 需要的请求头（Referer/UA/Cookie） |
+| `PlayableStream` | mpv 能直接打开的地址 + 请求头（Referer/UA/Cookie），可选带 width/height/bitrateKbps/subtitleLanguages 供画质与字幕选择 |
 | `StreamSniffer` | 播放页需要执行 JS 才能拿到流地址时，用浏览器加载并抓取请求 |
 
 ### 6.3 适配器清单

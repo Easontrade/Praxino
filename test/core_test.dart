@@ -30,6 +30,14 @@ void main() {
       expect(shaders.length, 6);
     });
 
+    test('fsrcnnx preset has its own family and shader', () {
+      final props = const EnhanceSettings(upscale: UpscalePreset.fsrcnnx)
+          .toMpvProperties(shaderDir: '/s', listSeparator: ';');
+      expect(props['glsl-shaders'], '/s/FSRCNNX_x2_16-0-4-1.glsl');
+      expect(UpscalePreset.fsrcnnx.shaderFamily, 'fsrcnnx');
+      expect(UpscalePreset.anime4kFast.shaderFamily, 'anime4k');
+    });
+
     test('denoise switches to copy-back decoding', () {
       final props = const EnhanceSettings(denoise: true)
           .toMpvProperties(shaderDir: '/s', listSeparator: ';');

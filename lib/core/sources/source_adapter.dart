@@ -45,11 +45,42 @@ class Episode {
 }
 
 /// Something mpv can open directly.
+///
+/// The optional quality fields are what the source reports about this stream;
+/// they let the UI prefer a high-resolution or high-bitrate candidate and show
+/// which subtitle languages the stream already carries.
 class PlayableStream {
-  const PlayableStream(this.url, {this.headers = const {}});
+  const PlayableStream(
+    this.url, {
+    this.headers = const {},
+    this.width,
+    this.height,
+    this.bitrateKbps,
+    this.subtitleLanguages = const [],
+    this.audioUrl,
+  });
 
   final String url;
   final Map<String, String> headers;
+  final int? width;
+  final int? height;
+
+  /// Average bitrate in kbit/s, when the source reports it.
+  final int? bitrateKbps;
+
+  /// Language tags/labels the stream carries, e.g. `zh-Hans`, `en`.
+  final List<String> subtitleLanguages;
+
+  /// Separate audio URL when the source only offers video-only + audio-only
+  /// formats; the player attaches it as mpv's `audio-files`.
+  final String? audioUrl;
+
+  /// Human-readable quality label for menus and logs.
+  String get qualityLabel {
+    if (height != null) return '${height}p';
+    if (bitrateKbps != null) return '${bitrateKbps}kbps';
+    return '未知';
+  }
 }
 
 abstract interface class SourceAdapter {

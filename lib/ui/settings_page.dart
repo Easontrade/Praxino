@@ -395,7 +395,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _checkUpdates() async {    final checker = UpdateChecker(
       currentVersion:
-          const String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0'),
+          const String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0'),
       skippedVersion: widget.settings.skippedUpdateVersion,
     );
     final info = await checker.check();

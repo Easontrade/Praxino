@@ -33,11 +33,13 @@ jobs:
           DANDANPLAY_APP_ID: ${{ secrets.DANDANPLAY_APP_ID }}
           DANDANPLAY_APP_SECRET: ${{ secrets.DANDANPLAY_APP_SECRET }}
         run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
           $appId = [Convert]::ToBase64String(
             [Text.Encoding]::UTF8.GetBytes("$env:DANDANPLAY_APP_ID"))
           $secret = [Convert]::ToBase64String(
             [Text.Encoding]::UTF8.GetBytes("$env:DANDANPLAY_APP_SECRET"))
           flutter build windows --release `
+            --dart-define=APP_VERSION="$version" `
             --dart-define=DANDANPLAY_APP_ID_B64="$appId" `
             --dart-define=DANDANPLAY_APP_SECRET_B64="$secret"
 

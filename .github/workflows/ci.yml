@@ -19,7 +19,18 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter build windows --release
+      - name: Build Windows
+        shell: pwsh
+        run: |
+          flutter build windows --release *>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       - name: Test (with QuickJS)
         shell: pwsh

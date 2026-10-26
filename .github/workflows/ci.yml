@@ -37,7 +37,9 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path build.log) {
-            Get-Content build.log -Tail 40 | ForEach-Object { Write-Output "::error::$_" }
+            Get-Content build.log | Select-String -Pattern 'error|fatal|FAILED|Out of memory|LNK' -CaseSensitive:$false |
+              Select-Object -Last 30 |
+              ForEach-Object { Write-Output "::error::$($_.Line)" }
           }
 
       - name: Test (with QuickJS)

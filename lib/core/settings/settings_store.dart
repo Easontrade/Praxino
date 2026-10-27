@@ -13,6 +13,7 @@ import '../sources/jellyfin/jellyfin_client.dart';
 import '../sources/subscription.dart';
 import '../sources/webdav/webdav_server.dart';
 import '../storage/app_database.dart';
+import '../subtitles/ai/ai_subtitle_job.dart';
 import 'keybindings.dart';
 
 /// User preferences that outlive a single playback.
@@ -63,6 +64,7 @@ class SettingsStore {
   static const _offlineFfmpegKey = 'offline.ffmpeg.v1';
   static const _offlineEsrganKey = 'offline.esrgan.v1';
   static const _offlineRifeKey = 'offline.rife.v1';
+  static const _aiSubtitleKey = 'ai_subtitles.v1';
   static const _vpyScriptKey = 'enhance.vpy.v1';
   static const _vsPythonKey = 'enhance.vs.python.v1';
   static const _vsSiteKey = 'enhance.vs.site.v1';
@@ -342,4 +344,20 @@ class SettingsStore {
     await _prefs.setString(_vsPythonKey, pythonDir.trim());
     await _prefs.setString(_vsSiteKey, siteDir.trim());
   }
+
+  /// Local Whisper + Claude settings for AI bilingual subtitles. The API key
+  /// lives only in the local settings file; it is never logged.
+  AiSubtitleSettings get aiSubtitles {
+    final raw = _prefs.getString(_aiSubtitleKey);
+    if (raw == null) return const AiSubtitleSettings();
+    try {
+      return AiSubtitleSettings.tryFromJson(jsonDecode(raw)) ??
+          const AiSubtitleSettings();
+    } on FormatException {
+      return const AiSubtitleSettings();
+    }
+  }
+
+  Future<void> setAiSubtitles(AiSubtitleSettings value) =>
+      _prefs.setString(_aiSubtitleKey, jsonEncode(value.toJson()));
 }

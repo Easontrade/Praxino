@@ -164,10 +164,14 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 5. RIFE 很吃显卡。UI 要显示实际掉帧数（mpv 属性 `frame-drop-count`、`vo-delayed-frame-count`），
    掉帧时提示降档（⏳ M2-3 第 5 步）。
 
-### 5.3 L3 离线处理（⏳ M5）
+### 5.3 L3 离线处理（✅ M5-2；M5-3 复用同一队列）
 
 "先处理再看"：ffmpeg 解码 → Real-ESRGAN-ncnn-vulkan / RIFE-ncnn-vulkan → ffmpeg 编码 → 输出新文件。
 做成后台任务队列（可暂停、断点续做），和播放器解耦。
+
+队列只有一个 `OfflineProcessor`，`RoutingOfflineProcessor` 按 `OfflineJobKind` 分派：
+`enhance` 走超分/补帧，`aiSubtitle` 走 AI 双语字幕（见 §7.2）。旧版本持久化的任务没有 `type` 字段，
+读回时按 `enhance` 处理。
 
 ---
 
@@ -243,9 +247,22 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 - ✅ 自动加载同名/子目录字幕（`sub-auto=fuzzy`）、拖入或按钮加载外挂字幕、libass 渲染。
 - ⏳ 在线搜索：ASSRT（射手）与 OpenSubtitles，结果下载到视频同目录的 `subs/` 后加载。
 - ⏳ 字幕时间偏移快捷键（`z`/`x` 是 mpv 默认键，需要在 UI 层补提示）。
-- ⏳ **AI 双语字幕**（M5-3）：大模型不接收音频，所以分两步——本地 Whisper 识别出带时间轴的原文，
-  再由 `Translator` 接口分段翻译（首个实现为 Claude API，默认 Haiku），输出中上英下的双语 ASS。
-  作为离线队列里的一种任务运行；按文件指纹缓存，不重复计费；API Key 只存本机。
+- 🟡 **AI 双语字幕**（M5-3，`lib/core/subtitles/ai/`）：大模型不接收音频，所以分两步——
+  本地 Whisper 识别出带时间轴的原文（`transcriber.dart`，whisper.cpp 或 faster-whisper 命令行，
+  只传参数列表不拼 shell），再由 `Translator` 接口分段翻译（`claude_translator.dart`，默认 Haiku，
+  设置里可切 Sonnet）。
+  - 数据模型：`TranscriptSegment {id,start,end,text}`；翻译结果按 `id` 对齐，模型漏掉的 id
+    重试一次，仍失败就回填原文（`TranslationResult.fallbackIds`）。
+  - 术语表：整集字幕先发一次给模型抽取人名/专有名词的固定译法，后续每个批次都带上。
+  - 分段：每批约 40 句，附前后各 5 句只读上下文（`buildTranslationBatches`）。
+  - 输出：视频旁 `<视频名>.zh-en.ass`（中文在上、字号大，原文在下、字号小，两条 Dialogue
+    共用时间轴）与 `<视频名>.zh.srt`（纯中文）。ASS 文本转义 `\`、`{}` 和换行；逗号留在
+    Dialogue 的最后一个字段里，不需要转义。
+  - 费用：`estimateTranslationCost` 按字数和批次数粗略估算 token 与美元，队列在真正调用 API 前
+    通过 `confirmEstimate` 回调让用户确认。
+  - 缓存：`%LOCALAPPDATA%/Praxino/ai-subtitles/<sha256(绝对路径|大小|mtime)>.json` 存
+    transcript + 译文，命中时只重写输出文件，不再调用 Whisper/API；损坏的缓存忽略。
+  - 作为离线队列里的 `aiSubtitle` 任务运行；API Key 只存本机设置，不写日志、不进仓库。
   片源字幕的现状：站点源多为**硬字幕**（压在画面里，不需要也无法替换）；yt-dlp 能拿到软字幕轨；
   本地 MKV 常内封软字幕。所以在线搜索和 AI 生成主要服务本地、网盘和媒体服务器片源。
 

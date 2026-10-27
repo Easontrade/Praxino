@@ -12,6 +12,8 @@ import '../core/enhance/enhance_pack_bundle.dart';
 import '../core/enhance/enhance_pack_paths.dart';
 import '../core/settings/keybindings.dart';
 import '../core/settings/settings_store.dart';
+import '../core/subtitles/ai/claude_translator.dart';
+import '../core/subtitles/ai/transcriber.dart';
 import '../core/subtitles/opensubtitles_provider.dart';
 import '../core/update/update_checker.dart';
 import 'dialog_scope.dart';
@@ -561,6 +563,144 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) setState(() {});
   }
 
+  String _aiSubtitleSummary() {
+    final ai = widget.settings.aiSubtitles;
+    final whisper = ai.whisperExecutable.trim().isEmpty
+        ? '未配置 Whisper'
+        : '${ai.whisperFlavor == WhisperFlavor.fasterWhisper ? 'faster-whisper' : 'whisper.cpp'} 已配置';
+    return '$whisper · ${ai.hasApiKey ? 'API Key 已配置' : '未配置 API Key'}';
+  }
+
+  Future<void> _aiSubtitles() async {
+    final current = widget.settings.aiSubtitles;
+    final whisperExe = TextEditingController(text: current.whisperExecutable);
+    final whisperModel = TextEditingController(text: current.whisperModel);
+    final apiKey = TextEditingController(text: current.claudeApiKey);
+    final sourceLanguage =
+        TextEditingController(text: current.sourceLanguage ?? '');
+    var flavor = current.whisperFlavor;
+    var model = current.claudeModel;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => DialogScope(
+        controllers: [whisperExe, whisperModel, apiKey, sourceLanguage],
+        child: StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('AI 双语字幕'),
+            content: SizedBox(
+              width: 640,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: whisperExe,
+                      decoration: const InputDecoration(
+                        labelText: 'Whisper 可执行文件',
+                        hintText: r'C:\Tools\whisper\whisper-cli.exe',
+                      ),
+                    ),
+                    TextField(
+                      controller: whisperModel,
+                      decoration: const InputDecoration(
+                        labelText: 'Whisper 模型',
+                        hintText: r'ggml-large-v3-turbo.bin（cpp）或 large-v3（faster-whisper）',
+                      ),
+                    ),
+                    DropdownButtonFormField<WhisperFlavor>(
+                      initialValue: flavor,
+                      decoration: const InputDecoration(labelText: 'Whisper 版本'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: WhisperFlavor.whisperCpp,
+                          child: Text('whisper.cpp（-m / -f / -oj）'),
+                        ),
+                        DropdownMenuItem(
+                          value: WhisperFlavor.fasterWhisper,
+                          child: Text('faster-whisper（--output_format json）'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setDialogState(() => flavor = value);
+                      },
+                    ),
+                    TextField(
+                      controller: apiKey,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Claude API Key',
+                        helperText: '只保存在本机设置里，不写日志、不进仓库',
+                      ),
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: model,
+                      decoration: const InputDecoration(labelText: 'Claude 模型'),
+                      items: [
+                        for (final id in ClaudeModels.known)
+                          DropdownMenuItem(
+                            value: id,
+                            child: Text(_claudeModelLabel(id)),
+                          ),
+                        if (!ClaudeModels.known.contains(model))
+                          DropdownMenuItem(value: model, child: Text(model)),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setDialogState(() => model = value);
+                      },
+                    ),
+                    TextField(
+                      controller: sourceLanguage,
+                      decoration: const InputDecoration(
+                        labelText: '源语言（留空自动检测）',
+                        hintText: 'en',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '识别在本机用 Whisper 完成（免费）；翻译调用 Claude API 并计费，'
+                      '任务开始前会显示预估费用并等待确认。重复处理同一文件直接复用缓存，不重复计费。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('保存'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (saved != true) return;
+    await widget.settings.setAiSubtitles(current.copyWith(
+      whisperExecutable: whisperExe.text.trim(),
+      whisperModel: whisperModel.text.trim(),
+      whisperFlavor: flavor,
+      claudeApiKey: apiKey.text.trim(),
+      claudeModel: model,
+      sourceLanguage: sourceLanguage.text.trim(),
+    ));
+    if (mounted) {
+      _toast('已保存 AI 双语字幕设置');
+      setState(() {});
+    }
+  }
+
+  static String _claudeModelLabel(String id) => switch (id) {
+        ClaudeModels.haiku => 'Claude Haiku（便宜、够用）',
+        ClaudeModels.sonnet => 'Claude Sonnet（更准、更贵）',
+        _ => id,
+      };
+
   Future<void> _checkUpdates() async {
     final checker = UpdateChecker(
       currentVersion:
@@ -635,6 +775,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 builder: (_) => OfflineTasksPage(settings: widget.settings),
               ),
             ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.translate),
+            title: const Text('AI 双语字幕'),
+            subtitle: Text(_aiSubtitleSummary()),
+            onTap: _aiSubtitles,
           ),
           ListTile(
             leading: const Icon(Icons.system_update_alt),

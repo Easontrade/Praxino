@@ -9,6 +9,8 @@ import '../core/enhance/offline/offline_job.dart';
 import '../core/enhance/offline/offline_queue.dart';
 import '../core/enhance/offline/offline_tools.dart';
 import '../core/settings/settings_store.dart';
+import '../core/subtitles/ai/ai_subtitle_job.dart';
+import '../core/subtitles/ai/translator.dart';
 
 class OfflineTasksPage extends StatefulWidget {
   const OfflineTasksPage({super.key, required this.settings});
@@ -35,13 +37,23 @@ class _OfflineTasksPageState extends State<OfflineTasksPage> {
       esrganPath: widget.settings.offlineEsrganPath,
       rifePath: widget.settings.offlineRifePath,
     );
-    final processor = tools.canEnhance
+    final enhanceProcessor = tools.canEnhance
         ? GpuOfflineProcessor(tools: tools)
         : FfmpegOfflineProcessor(runner: FfmpegRunner());
+    final ffmpeg = widget.settings.offlineFfmpegPath?.trim();
+    final aiSettings = widget.settings.aiSubtitles.copyWith(
+      ffmpegExecutable: ffmpeg == null || ffmpeg.isEmpty ? null : ffmpeg,
+    );
     if (!mounted) return;
     setState(() {
       _queue = OfflineQueue(
-        processor: processor,
+        processor: RoutingOfflineProcessor(
+          enhanceProcessor: enhanceProcessor,
+          aiSubtitleProcessor: AiSubtitleProcessor(
+            settings: aiSettings,
+            confirmEstimate: _confirmEstimate,
+          ),
+        ),
         initial: widget.settings.offlineJobs,
         persist: widget.settings.saveOfflineJobs,
       );
@@ -61,12 +73,68 @@ class _OfflineTasksPageState extends State<OfflineTasksPage> {
     setState(() {});
   }
 
+  Future<void> _addAiSubtitle() async {
+    final queue = _queue;
+    if (queue == null) return;
+    final result = await FilePicker.pickFiles(
+      dialogTitle: '选择要生成双语字幕的视频',
+    );
+    if (result.isEmpty) return;
+    for (final file in result) {
+      if (file.path != null) queue.add(OfflineJob.forAiSubtitle(file.path!));
+    }
+    setState(() {});
+  }
+
   Future<void> _start() async {
     final queue = _queue;
     if (queue == null) return;
     setState(() => _busy = true);
     await queue.start();
     if (mounted) setState(() => _busy = false);
+  }
+
+  /// Shown by the AI subtitle processor after transcription, before any paid
+  /// request. Declining aborts the job without writing subtitle files.
+  Future<bool> _confirmEstimate(AiSubtitleCostEstimate estimate) async {
+    if (!mounted) return false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('开始翻译？'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('识别到 ${estimate.segmentCount} 句字幕，'
+                  '分 ${estimate.batchCount} 批翻译。'),
+              const SizedBox(height: 8),
+              Text('模型：${estimate.model}'),
+              Text('预计输入约 ${estimate.estimatedInputTokens} tokens，'
+                  '输出约 ${estimate.estimatedOutputTokens} tokens。'),
+              const SizedBox(height: 8),
+              Text('预计费用约 ${estimate.usdLabel}（粗略估算，实际按 API 计费）。'),
+              const SizedBox(height: 8),
+              const Text('继续会调用 Claude API 并产生费用；取消则不翻译，'
+                  '也不会写入字幕文件。'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('开始翻译'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
   }
 
   @override
@@ -78,12 +146,17 @@ class _OfflineTasksPageState extends State<OfflineTasksPage> {
     final jobs = queue.jobs;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('离线增强任务'),
+        title: const Text('离线任务'),
         actions: [
           IconButton(
-            tooltip: '添加视频',
+            tooltip: '添加增强视频',
             icon: const Icon(Icons.add),
             onPressed: _add,
+          ),
+          IconButton(
+            tooltip: '添加双语字幕任务',
+            icon: const Icon(Icons.closed_caption_outlined),
+            onPressed: _addAiSubtitle,
           ),
           IconButton(
             tooltip: '开始队列',
@@ -104,7 +177,7 @@ class _OfflineTasksPageState extends State<OfflineTasksPage> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${_label(job.status)}'
+                      Text('${_kindLabel(job.kind)} · ${_label(job.status)}'
                           '${job.error == null ? '' : ' · ${job.error}'}'),
                       if (job.status == OfflineJobStatus.running)
                         LinearProgressIndicator(value: job.progress),
@@ -149,6 +222,11 @@ class _OfflineTasksPageState extends State<OfflineTasksPage> {
             ),
     );
   }
+
+  static String _kindLabel(OfflineJobKind kind) => switch (kind) {
+        OfflineJobKind.enhance => '超分/补帧',
+        OfflineJobKind.aiSubtitle => '双语字幕',
+      };
 
   static String _label(OfflineJobStatus status) => switch (status) {
         OfflineJobStatus.queued => '排队中',

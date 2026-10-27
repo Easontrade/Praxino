@@ -390,14 +390,23 @@
 - **验收**：单测覆盖队列状态机和断点；用 1 分钟片段做端到端处理；
   失败任务能重试且不破坏原文件。
 
-### M5-3 AI 双语字幕（本地识别 + 大模型翻译） ⏳
+### M5-3 AI 双语字幕（本地识别 + 大模型翻译） 🟡
+
+> 🟡 部分完成：核心管线、离线队列接入、设置页与确认对话框都已完成，45 条新单测覆盖
+> ASS 生成/转义/时间轴、Whisper JSON 解析、Claude 对齐/重试/回退/Key 缺失、缓存命中与费用确认。
+> 剩余：没有真实 Whisper 和 Claude 调用做端到端验证（本机未安装 Whisper，也不在测试里访问真实 API），
+> Claude 模型 id（`claude-haiku-5-5` / `claude-sonnet-5-5`）需要按账号可用模型核对；
+> 费用是粗略估算。暂停/取消发生在翻译中途时不会保留已翻译的批次，恢复会重新识别与翻译。
 - **目标**：为没有字幕或只有外语字幕的视频生成中英双语字幕。主要面向本地文件、网盘和 Jellyfin 片源；
   站点源大多是硬字幕，不需要。
 - **两步走**：大模型不接收音频，所以先用**本地 Whisper** 做语音识别（免费），再用**大模型翻译**。
-- **文件**：`lib/core/subtitles/ai/transcriber.dart`（Whisper 调用）、`translator.dart`（翻译接口）、
-  `claude_translator.dart`、`bilingual_ass.dart`（生成双语 ASS）、`ai_subtitle_job.dart`（接入离线队列）（均新建）、
+- **文件**：`lib/core/subtitles/ai/transcript.dart`（片段模型）、`transcriber.dart`（Whisper 调用）、
+  `translator.dart`（翻译接口与费用估算）、`claude_translator.dart`、`bilingual_ass.dart`（生成双语 ASS/SRT）、
+  `ai_subtitle_job.dart`（缓存与接入离线队列）（均新建）、
+  `lib/core/enhance/offline/offline_job.dart`（任务类型）、`lib/core/settings/settings_store.dart`、
   `lib/ui/settings_page.dart`、`lib/ui/offline_tasks_page.dart`、
-  `test/bilingual_ass_test.dart`、`test/claude_translator_test.dart`、`test/ai_subtitle_job_test.dart`（新建）
+  `test/bilingual_ass_test.dart`、`test/ai_transcriber_test.dart`、`test/claude_translator_test.dart`、
+  `test/ai_subtitle_job_test.dart`（新建）
 - **做法**：
   1. **任务类型**：在 M5-2 的离线队列里加 `AiSubtitleJob`，可排队、取消、失败重试；同一文件
      （以路径 + 大小 + 修改时间为 key）已生成过就直接复用，不重复计费。

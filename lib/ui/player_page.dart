@@ -119,6 +119,11 @@ class _PlayerPageState extends State<PlayerPage> {
     _history = widget.settings.watchHistory;
     _keys = widget.settings.keybindings;
     _danmakuService = DanmakuService(settings: widget.settings);
+    if (widget.settings.enhance.interpolation != InterpolationMode.off) {
+      // A saved RIFE/mvtools choice is deliberate: do not let start-up frame
+      // drops immediately override it. The advisor still re-arms after 30 min.
+      _advisor.noteUserChoice(DateTime.now());
+    }
     HardwareKeyboard.instance.addHandler(_onGlobalKey);
     _player.player.stream.playlist.listen(_onPlaylistChanged);
     _historyTimer =
@@ -740,6 +745,16 @@ class _PlayerPageState extends State<PlayerPage> {
         settings: _player.enhance,
         onChanged: (value) => _setEnhance(value),
       ),
+      _CompareButton(
+        onStart: () {
+          unawaited(_player.beginCompare());
+          _toast('对比：原始画面（松开恢复）');
+        },
+        onEnd: () {
+          unawaited(_endCompare());
+          _toast('已恢复画质增强');
+        },
+      ),
       const MaterialDesktopFullscreenButton(),
     ];
 
@@ -813,6 +828,32 @@ class _PlayerPageState extends State<PlayerPage> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Press-and-hold "original picture" button for users who do not use the C key.
+class _CompareButton extends StatelessWidget {
+  const _CompareButton({required this.onStart, required this.onEnd});
+
+  final VoidCallback onStart;
+  final VoidCallback onEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => onStart(),
+      onTapUp: (_) => onEnd(),
+      onTapCancel: onEnd,
+      child: const Tooltip(
+        message: '按住对比原画 (C)',
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(Icons.compare, color: Colors.white),
         ),
       ),
     );

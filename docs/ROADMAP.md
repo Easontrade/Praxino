@@ -207,10 +207,13 @@
   启用/禁用持久化；测试不访问网络。
 
 ### M3-2 搜索页与详情页 ✅
+> ✅ 另加“源排行”：搜索后逐源解析首集、探测直链、解析 HLS 分辨率，按可播放/质量/延迟排序，
+> 显示质量、链接和失败原因，可一键复制；Kazumi 这类需要抓流的源会标成“需抓流”。
 - **目标**：首页增加"在线"标签：搜索框 → 对所有启用的源并发搜索（每个源单独超时 10s）→
   结果按源分组 → 点进去选线路和集数。
 - **文件**：`lib/core/sources/search_service.dart`（新建）、`lib/ui/search_page.dart`（新建）、
-  `lib/ui/media_detail_page.dart`（新建）、`lib/ui/home_page.dart`、`test/search_service_test.dart`（新建）
+  `lib/ui/media_detail_page.dart`（新建）、`lib/ui/home_page.dart`、`test/search_service_test.dart`（新建）、
+  `lib/core/sources/source_report.dart`、`lib/ui/source_report_page.dart`（源排行）
 - **做法**：用 `SourceRegistry.search` 的流式结果，每个源单独超时；单个源出错只在它的分组里显示错误，
   不影响其它源；结果里的 `PlayableStream` 可带 height/bitrateKbps/subtitleLanguages，
   UI 据此排序或筛选；结果为空、全部失败、加载中都要有明确状态。

@@ -11,12 +11,14 @@ import '../core/sources/reliability/title_match.dart';
 import '../core/sources/script/script_adapter.dart';
 import '../core/sources/source_adapter.dart';
 import '../core/sources/source_registry.dart';
+import '../core/sources/source_report.dart';
 import '../core/sources/stremio/stremio_adapter.dart';
 import '../core/sources/tvbox/tvbox_adapter.dart';
 import '../core/sources/tvbox/tvbox_config.dart';
 import '../core/sources/ytdlp/ytdlp_adapter.dart';
 import 'extra_sources_page.dart';
 import 'media_detail_page.dart';
+import 'source_report_page.dart';
 import 'subscriptions_page.dart';
 
 /// Searches every enabled subscription and drills into one hit.
@@ -171,6 +173,25 @@ class _OnlinePageState extends State<OnlinePage> {
     ));
   }
 
+  Future<void> _openSourceReport() async {
+    final inputs = <SourceReportInput>[];
+    for (final result in _results) {
+      final adapter = _byId[result.sourceId];
+      if (adapter == null || result.items.isEmpty) continue;
+      inputs.add(SourceReportInput(adapter: adapter, items: result.items));
+    }
+    if (inputs.isEmpty) {
+      _toast('先搜索，有结果后才能生成源排行');
+      return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SourceReportPage(
+        query: _query.text.trim(),
+        inputs: inputs,
+      ),
+    ));
+  }
+
   void _toast(String text) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -183,6 +204,11 @@ class _OnlinePageState extends State<OnlinePage> {
       appBar: AppBar(
         title: const Text('在线搜索'),
         actions: [
+          IconButton(
+            tooltip: '源排行',
+            icon: const Icon(Icons.leaderboard_outlined),
+            onPressed: _results.isEmpty ? null : _openSourceReport,
+          ),
           IconButton(
             tooltip: '扩展源',
             icon: const Icon(Icons.extension),

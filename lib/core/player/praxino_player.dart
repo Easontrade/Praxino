@@ -79,8 +79,10 @@ class PraxinoPlayer {
     _diagnosticsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       final stats = await playbackStats();
       final vf = await _native.getProperty('vf');
+      final osd = await _native.getProperty('osd-dimensions');
+      final shaders = await _native.getProperty('glsl-shaders');
       write('[stats] height=${stats.height} fps=${stats.fps} '
-          'dropped=${stats.droppedFrames} vf=$vf');
+          'dropped=${stats.droppedFrames} vf=$vf osd=$osd shaders=$shaders');
     });
   }
 

@@ -41,6 +41,10 @@ bool FlutterWindow::OnCreate() {
   flutter_controller_->engine()->SetNextFrameCallback([this]() {
     if (!hidden_) {
       this->Show();
+      // A 1280x720 window is too small for Anime4K/FSRCNNX to upscale a
+      // 1080p source (they need >1.2-1.3x display width). Start maximized so
+      // the enhancement path is actually exercised on 2K/4K displays.
+      ::ShowWindow(this->GetHandle(), SW_MAXIMIZE);
     }
   });
 

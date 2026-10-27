@@ -7,10 +7,10 @@
 | 检查 | 结果 |
 | --- | --- |
 | `flutter analyze` | 0 issue |
-| `flutter test` | 196 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 202 全通过 |
+| `flutter test` | 200 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 206 全通过 |
 | `flutter build windows --debug` | 成功 |
 | `flutter build windows --release` | 成功 |
-| GitHub Actions CI | 成功：build release 后带 QuickJS DLL 跑 202 个测试，无跳过 |
+| GitHub Actions CI | 成功：build release 后带 QuickJS DLL 跑 206 个测试，无跳过 |
 | Inno Setup 安装包编译 | 成功；最终 SHA256 `ed5ad5c4e128807d9f069a838e952e42e2ccf1baf5a321716c8b63c83e8e705d` |
 | 安装包 ANGLE Vulkan 排除 | 已验证：安装目录无 `vulkan-1.dll` / `vk_swiftshader.dll` |
 

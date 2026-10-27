@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../core/settings/settings_store.dart';
-import '../core/sources/webdav/webdav_adapter.dart';
+import '../core/sources/source_adapter.dart';
 import '../core/sources/webdav/webdav_client.dart';
 import '../core/sources/webdav/webdav_server.dart';
 import 'player_page.dart';
@@ -72,20 +73,27 @@ class _WebDavBrowserPageState extends State<WebDavBrowserPage> {
       ));
       return;
     }
-    final videos = _entries
-        .where((item) => !item.isDirectory && WebDavAdapter.isVideoName(item.name))
-        .toList();
-    final index = videos.indexWhere((item) => item.path == entry.path);
-    if (index < 0) return;
+    final base = p.basenameWithoutExtension(entry.name);
+    final subtitles = <String, String>{};
+    for (final item in _entries) {
+      if (item.isDirectory) continue;
+      final ext = p.extension(item.name).toLowerCase();
+      if (ext != '.srt' && ext != '.ass' && ext != '.vtt') continue;
+      if (p.basenameWithoutExtension(item.name) != base) continue;
+      subtitles[item.name] = _client.uriFor(item.path).toString();
+    }
     final headers = _client.headers['Authorization'];
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PlayerPage(
         settings: widget.settings,
-        sources: [
-          for (final video in videos) _client.uriFor(video.path).toString()
+        streams: [
+          PlayableStream(
+            _client.uriFor(entry.path).toString(),
+            headers: headers == null ? const {} : {'Authorization': headers},
+            subtitleLanguages: subtitles.keys.toList(),
+            subtitleUrls: subtitles,
+          )
         ],
-        index: index,
-        headers: headers == null ? const {} : {'Authorization': headers},
       ),
     ));
   }

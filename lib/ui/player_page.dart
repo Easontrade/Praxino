@@ -383,6 +383,26 @@ class _PlayerPageState extends State<PlayerPage> {
       final stats = await _player.playbackStats();
       if (!mounted || stats.height == null || stats.height == 0) return;
       final current = _player.enhance.value;
+      final nextInterpolation = _advisor.evaluateInterpolation(
+        current: current.interpolation,
+        droppedFrames: stats.droppedFrames ?? 0,
+        fps: stats.fps ?? 0,
+        now: DateTime.now(),
+      );
+      if (nextInterpolation != null &&
+          nextInterpolation != current.interpolation) {
+        await _setEnhance(
+          current.copyWith(interpolation: nextInterpolation),
+          byUser: false,
+        );
+        if (mounted) {
+          _showDownshiftToast(
+            '掉帧过多，补帧已降到：${_interpolationLabel(nextInterpolation)}',
+            current,
+          );
+        }
+        return;
+      }
       final next = _advisor.evaluate(
         current: current.upscale,
         droppedFrames: stats.droppedFrames ?? 0,
@@ -391,7 +411,9 @@ class _PlayerPageState extends State<PlayerPage> {
       );
       if (next == null || next == current.upscale) return;
       await _setEnhance(current.copyWith(upscale: next), byUser: false);
-      if (mounted) _toast('掉帧过多，已降到：${next.label}');
+      if (mounted) {
+        _showDownshiftToast('掉帧过多，已降到：${next.label}', current);
+      }
     } catch (_) {
       // The property may be missing while files change; retry on the next tick.
     } finally {
@@ -402,6 +424,28 @@ class _PlayerPageState extends State<PlayerPage> {
   void _setUpscale(UpscalePreset preset) {
     _setEnhance(_player.enhance.value.copyWith(upscale: preset));
     _toast('超分辨率：${preset.label}');
+  }
+
+  static String _interpolationLabel(InterpolationMode mode) => switch (mode) {
+        InterpolationMode.rife => 'RIFE',
+        InterpolationMode.mvtools => 'mvtools',
+        InterpolationMode.off => '关闭',
+      };
+
+  void _showDownshiftToast(String text, EnhanceSettings previous) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(text),
+        action: SnackBarAction(
+          label: '撤销',
+          onPressed: () {
+            if (!mounted) return;
+            _setEnhance(previous);
+          },
+        ),
+      ));
   }
 
   void _togglePlaylist() {

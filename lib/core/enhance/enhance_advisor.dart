@@ -1,4 +1,5 @@
 import 'enhance_settings.dart';
+import 'interpolation.dart';
 
 /// Suggests a lower upscale preset when the GPU cannot keep up.
 ///
@@ -18,6 +19,8 @@ class EnhanceAdvisor {
 
   DateTime? _sampleAt;
   int _dropsAtStart = 0;
+  DateTime? _interpolationSampleAt;
+  int _interpolationDropsAtStart = 0;
   DateTime? _userChoiceAt;
 
   bool hasUserOverride(DateTime now) =>
@@ -26,6 +29,7 @@ class EnhanceAdvisor {
   void noteUserChoice(DateTime now) {
     _userChoiceAt = now;
     _sampleAt = null;
+    _interpolationSampleAt = null;
   }
 
   /// Returns the next lower preset, or null when no change is warranted.
@@ -64,4 +68,40 @@ class EnhanceAdvisor {
         UpscalePreset.fsrcnnx => UpscalePreset.off,
         UpscalePreset.off => null,
       };
+
+  /// Returns the next cheaper interpolation backend, or null at `off`.
+  static InterpolationMode? lowerInterpolation(InterpolationMode current) =>
+      switch (current) {
+        InterpolationMode.rife => InterpolationMode.mvtools,
+        InterpolationMode.mvtools => InterpolationMode.off,
+        InterpolationMode.off => null,
+      };
+
+  /// Same sampling policy as [evaluate], but for frame interpolation.
+  InterpolationMode? evaluateInterpolation({
+    required InterpolationMode current,
+    required int droppedFrames,
+    required double fps,
+    required DateTime now,
+  }) {
+    if (hasUserOverride(now)) return null;
+    final sampleAt = _interpolationSampleAt;
+    if (sampleAt == null) {
+      _interpolationSampleAt = now;
+      _interpolationDropsAtStart = droppedFrames;
+      return null;
+    }
+    final elapsed = now.difference(sampleAt);
+    if (elapsed < window) return null;
+
+    final drops = droppedFrames - _interpolationDropsAtStart;
+    _interpolationSampleAt = now;
+    _interpolationDropsAtStart = droppedFrames;
+
+    final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final expected = (fps > 0 ? fps : 60) * seconds;
+    if (expected <= 0) return null;
+    if (drops / expected <= maxDropRatio) return null;
+    return lowerInterpolation(current);
+  }
 }

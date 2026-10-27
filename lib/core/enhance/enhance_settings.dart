@@ -67,6 +67,7 @@ class EnhanceSettings {
     this.deband = false,
     this.denoise = false,
     this.interpolation = InterpolationMode.off,
+    this.rifeProfile = RifeProfile.double,
   });
 
   final UpscalePreset upscale;
@@ -83,6 +84,9 @@ class EnhanceSettings {
   /// script is supplied to [toMpvProperties].
   final InterpolationMode interpolation;
 
+  /// RIFE output-rate strategy; ignored for mvtools/off.
+  final RifeProfile rifeProfile;
+
   bool get isOff =>
       upscale == UpscalePreset.off &&
       !deband &&
@@ -94,12 +98,14 @@ class EnhanceSettings {
     bool? deband,
     bool? denoise,
     InterpolationMode? interpolation,
+    RifeProfile? rifeProfile,
   }) =>
       EnhanceSettings(
         upscale: upscale ?? this.upscale,
         deband: deband ?? this.deband,
         denoise: denoise ?? this.denoise,
         interpolation: interpolation ?? this.interpolation,
+        rifeProfile: rifeProfile ?? this.rifeProfile,
       );
 
   /// The mpv properties that realise these settings.
@@ -136,6 +142,7 @@ class EnhanceSettings {
         'deband': deband,
         'denoise': denoise,
         'interpolation': interpolation.name,
+        'rifeProfile': rifeProfile.name,
       };
 
   factory EnhanceSettings.fromJson(Map<String, Object?> json) =>
@@ -150,6 +157,10 @@ class EnhanceSettings {
           (m) => m.name == json['interpolation'],
           orElse: () => InterpolationMode.off,
         ),
+        rifeProfile: RifeProfile.values.firstWhere(
+          (profile) => profile.name == json['rifeProfile'],
+          orElse: () => RifeProfile.double,
+        ),
       );
 
   @override
@@ -158,8 +169,9 @@ class EnhanceSettings {
       other.upscale == upscale &&
       other.deband == deband &&
       other.denoise == denoise &&
-      other.interpolation == interpolation;
+      other.interpolation == interpolation &&
+      other.rifeProfile == rifeProfile;
 
   @override
-  int get hashCode => Object.hash(upscale, deband, denoise, interpolation);
+  int get hashCode => Object.hash(upscale, deband, denoise, interpolation, rifeProfile);
 }

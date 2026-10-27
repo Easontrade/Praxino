@@ -54,6 +54,14 @@ void main() {
       endsWith('rife_ncnn.vpy'),
     );
     expect(
+      interpolationScriptFor(
+        InterpolationMode.rife,
+        templateDir: '/t',
+        profile: RifeProfile.fixed60,
+      ),
+      endsWith('rife_ncnn_60.vpy'),
+    );
+    expect(
       interpolationScriptFor(InterpolationMode.rife,
           templateDir: '/t', override: ' /mine.vpy '),
       '/mine.vpy',
@@ -66,7 +74,10 @@ void main() {
   });
 
   test('interpolation mode round-trips through json', () {
-    const settings = EnhanceSettings(interpolation: InterpolationMode.rife);
+    const settings = EnhanceSettings(
+      interpolation: InterpolationMode.rife,
+      rifeProfile: RifeProfile.fixed60,
+    );
     expect(EnhanceSettings.fromJson(settings.toJson()), settings);
   });
 }

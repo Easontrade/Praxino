@@ -83,6 +83,19 @@ class EnhanceButton extends StatelessWidget {
                   },
                 ),
               ),
+            const _Header('RIFE 档位'),
+            for (final profile in RifeProfile.values)
+              MenuItemButton(
+                leadingIcon: Icon(
+                  value.rifeProfile == profile
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  size: 18,
+                ),
+                onPressed: () =>
+                    onChanged(value.copyWith(rifeProfile: profile)),
+                child: _Item(profile.label, profile.hint),
+              ),
           ],
           builder: (context, menu, _) => IconButton(
             tooltip: '画质增强 (Ctrl+0~3)',

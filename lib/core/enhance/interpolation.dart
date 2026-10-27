@@ -12,14 +12,28 @@ enum InterpolationMode {
   final String? templateName;
 }
 
+/// RIFE output-rate strategy.
+enum RifeProfile {
+  double('2 倍帧率', 'RIFE 只推理一半帧，速度最快'),
+  fixed60('固定 60fps', '低帧率源补到 60，推理量更大');
+
+  const RifeProfile(this.label, this.hint);
+
+  final String label;
+  final String hint;
+}
+
 /// The `.vpy` script to run for [mode]: the user's [override] when set,
 /// otherwise the bundled template in [templateDir].
 String? interpolationScriptFor(
   InterpolationMode mode, {
   required String templateDir,
   String? override,
+  RifeProfile profile = RifeProfile.double,
 }) {
-  final name = mode.templateName;
+  final name = mode == InterpolationMode.rife && profile == RifeProfile.fixed60
+      ? 'rife_ncnn_60.vpy'
+      : mode.templateName;
   if (name == null) return null;
   if (override != null && override.trim().isNotEmpty) return override.trim();
   return p.join(templateDir, name);

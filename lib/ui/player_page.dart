@@ -151,6 +151,7 @@ class _PlayerPageState extends State<PlayerPage> {
         value.interpolation,
         templateDir: PraxinoPlayer.vapoursynthTemplateDirectory,
         override: widget.settings.interpolationScriptPath,
+        profile: value.rifeProfile,
       );
 
   Future<void> _start() async {

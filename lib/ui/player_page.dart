@@ -100,6 +100,8 @@ class _PlayerPageState extends State<PlayerPage> {
   int _danmakuRequest = 0;
   bool _startPositionApplied = false;
   bool _checkingPerformance = false;
+  DateTime _statsWarmupUntil =
+      DateTime.now().add(const Duration(seconds: 12));
   AutoSwitch? _auto;
   PrefetchController<PlayableStream?>? _prefetch;
   bool _advancing = false;
@@ -425,6 +427,8 @@ class _PlayerPageState extends State<PlayerPage> {
     if (!_player.comparing) {
       await widget.settings.setEnhance(value);
     }
+    // A new shader/interpolation chain re-initialises and drops frames.
+    _statsWarmupUntil = DateTime.now().add(const Duration(seconds: 8));
   }
 
   Future<void> _endCompare() async {
@@ -458,6 +462,10 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Future<void> _checkPerformance() async {
     if (_checkingPerformance) return;
+    // RIFE and the shader chain drop frames while their filters initialise;
+    // counting those startup drops would immediately downshift a healthy
+    // setup. Wait for the pipeline to settle before judging.
+    if (DateTime.now().isBefore(_statsWarmupUntil)) return;
     _checkingPerformance = true;
     try {
       final stats = await _player.playbackStats();

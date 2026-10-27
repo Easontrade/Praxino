@@ -142,7 +142,13 @@
 
 ### M2-3 增强包与补帧（RIFE / mvtools） 🟡
 
-> 🟡 部分完成：增强包下载/校验、脚本路径、CLI mvtools 已验证；应用内补帧受 libmpv client API 2.1/2.6 兼容性阻塞。
+> 🟡 部分完成：**应用内 mvtools 补帧已打通**（1080p 23.976 → 59.94 fps，0 掉帧，隐藏桌面实测）。
+> 剩余：RIFE 模板与实测、掉帧提示降档（第 5 步）、真人肉眼观感。
+>
+> 之前的"API 2.1/2.6 不兼容"是误判：真正原因是进程里加载了**两份** libmpv（见 ARCHITECTURE §5.2）。
+> 实测：2023-07 的 shinchiro 构建（mpv 0.35.0-579，API 2.1）用旧方式同样崩溃，放进应用目录后又因为太旧、
+> 找不到 VapourSynth R81 的入口而退出（0xC06D007F）；当前的 2026 构建（API 2.6）放进应用目录后正常工作。
+> 结论：用当前 shinchiro 构建即可，**不需要旧构建，也不需要 fork media_kit**。
 - **目标**：通过可选的"增强包"让 mpv 支持 VapourSynth，实现实时补帧。设计见 ARCHITECTURE §5.2。
 - **文件**：`lib/core/enhance/enhance_pack.dart`（新建：下载/校验/安装）、
   `lib/core/enhance/interpolation.dart`（新建：vf 组合与 vpy 参数）、
@@ -151,16 +157,16 @@
 - **做法**：拆成五步，各自提交：
   1. 先验证：用当前 libmpv 试 `vf=vapoursynth`（或看 `mpv --list-filters` 里有没有 vapoursynth），
      确认是否真的不支持；如果支持，直接跳到第 3 步。
-     **当前卡点**：手上带 VapourSynth 的 libmpv 是 client API 2.6，media_kit 1.2.6 只兼容 2.1，加载即退出。
-     client API 版本跟随 mpv 版本，**mpv 0.36 对应 2.1**：先找 shinchiro 基于 mpv 0.36 编译、
-     带 VapourSynth 的 `libmpv-2.dll`（约 2023 年下半年的构建），用 `tool/check_vs_pack.ps1` 验证
-     API 版本和 `vapoursynth` 滤镜；都找不到再评估 fork media_kit。
-  2. 增强包下载器和版本校验（SHA256）：清单包含 URL、版本、哈希；下载到
+     ✅ 结论：media_kit 自带的 libmpv 不含 VapourSynth，需要增强包。
+  2. ✅ 增强包下载器和版本校验（SHA256）：清单包含 URL、版本、哈希；下载到
      `%APPDATA%/Praxino/enhance-pack/`；校验失败删除并报错。
-  3. 在**创建任何 Player 之前**用 `MediaKit.ensureInitialized(libmpv: '<包>/libmpv-2.dll')` 加载带
-     VapourSynth 的 libmpv；运行中启用必须提示重启（media_kit 不能在已创建 Player 后换库）。
-  4. `EnhanceSettings.interpolation`（`off / mvtools / rife`）+ `.vpy` 模板（mvtools 版和 RIFE 版）；
-     把补帧滤镜与 L1 的 `hqdn3d` 合并进同一条 `vf` 链，不能互相覆盖。
+  3. ✅ 启用 = 替换应用目录里的 `libmpv-2.dll`（`EnhancePackActivation`，重启生效）；
+     **不要**用 `MediaKit.ensureInitialized(libmpv:)` 另外加载一份。VapourSynth 运行时路径在设置页填写，
+     启动时由 `VapourSynthRuntime` 写入进程环境（Win32 + C 运行时两份）。
+  4. 🟡 `EnhanceSettings.interpolation`（`off / mvtools / rife`）+ `.vpy` 模板：
+     ✅ `assets/vapoursynth/mvtools_flowfps.vpy`（读 mpv 注入的 `video_in`/`container_fps`，输出约 60fps）；
+     ⏳ RIFE 版模板（vs-rife / vs-mlrt，TensorRT 或 ncnn 后端）。
+     补帧滤镜与 L1 的 `hqdn3d` 已合并进同一条 `vf` 链。
   5. 显示 `frame-drop-count`，掉帧时提示降档。
 - **验收**：24fps 片源开启后，`estimated-vf-fps` 约等于显示器刷新率；关闭后能恢复；
   降噪和补帧可以同时开启且两者都生效；增强包缺失/校验失败时不影响普通播放。

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -48,8 +49,36 @@ class PraxinoPlayer {
     controller = VideoController(player);
     if (kDebugMode) {
       player.stream.log.listen((l) => debugPrint('[mpv:${l.prefix}] ${l.text}'));
+      _startDiagnostics();
     }
     _ready = _applyBaseline();
+  }
+
+  Timer? _diagnosticsTimer;
+
+  /// Debug-only: when `PRAXINO_DIAG_LOG` names a file, append mpv log lines
+  /// and a playback-stats line every 2 s. Lets windowless runs (no console)
+  /// be checked afterwards.
+  void _startDiagnostics() {
+    final path = Platform.environment['PRAXINO_DIAG_LOG'];
+    if (path == null || path.isEmpty) return;
+    final file = File(path);
+    void write(String line) {
+      try {
+        file.writeAsStringSync('${DateTime.now().toIso8601String()} $line\n',
+            mode: FileMode.append, flush: true);
+      } on FileSystemException {
+        // Best-effort diagnostics only.
+      }
+    }
+
+    player.stream.log.listen((l) => write('[mpv:${l.prefix}] ${l.text}'));
+    _diagnosticsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      final stats = await playbackStats();
+      final vf = await _native.getProperty('vf');
+      write('[stats] height=${stats.height} fps=${stats.fps} '
+          'dropped=${stats.droppedFrames} vf=$vf');
+    });
   }
 
   final Player player;
@@ -237,6 +266,7 @@ class PraxinoPlayer {
       p.join(shaderRoot, preset.shaderFamily).replaceAll('\\', '/');
 
   Future<void> dispose() async {
+    _diagnosticsTimer?.cancel();
     enhance.dispose();
     await player.dispose();
   }

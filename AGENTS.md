@@ -43,6 +43,8 @@
 
 调试日志：debug 构建会把 mpv 的 warn 级别以上日志打印成 `[mpv:...]`，
 画质设置变化时会打印 `[enhance] {...} shaders=...`，可以用它确认着色器是否真的加载了。
+无窗口运行（隐藏桌面，没有控制台）时，设置环境变量 `PRAXINO_DIAG_LOG=<文件>`，debug 构建会把 mpv 日志
+和每 2 秒一次的 `[stats] height/fps/dropped/vf` 追加到这个文件里，用来验证补帧等效果。
 
 ## 提交
 

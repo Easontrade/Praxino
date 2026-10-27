@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../danmaku/danmaku_match_store.dart';
 import '../enhance/enhance_settings.dart';
 import '../enhance/offline/offline_job.dart';
+import '../enhance/vapoursynth_runtime.dart';
 import '../library/watch_history.dart';
 import '../sources/extra_source.dart';
 import '../sources/subscription.dart';
@@ -59,6 +60,8 @@ class SettingsStore {
   static const _offlineEsrganKey = 'offline.esrgan.v1';
   static const _offlineRifeKey = 'offline.rife.v1';
   static const _vpyScriptKey = 'enhance.vpy.v1';
+  static const _vsPythonKey = 'enhance.vs.python.v1';
+  static const _vsSiteKey = 'enhance.vs.site.v1';
   static const _skippedUpdateKey = 'update.skipped.v1';
   static const _maxRecent = 20;
 
@@ -278,5 +281,19 @@ class SettingsStore {
     } else {
       await _prefs.setString(_vpyScriptKey, path.trim());
     }
+  }
+
+  /// Portable VapourSynth install used by the interpolation filter.
+  VapourSynthRuntime get vapoursynthRuntime => VapourSynthRuntime(
+        pythonDir: _prefs.getString(_vsPythonKey) ?? '',
+        siteDir: _prefs.getString(_vsSiteKey) ?? '',
+      );
+
+  Future<void> setVapoursynthRuntime({
+    required String pythonDir,
+    required String siteDir,
+  }) async {
+    await _prefs.setString(_vsPythonKey, pythonDir.trim());
+    await _prefs.setString(_vsSiteKey, siteDir.trim());
   }
 }

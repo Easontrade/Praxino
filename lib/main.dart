@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
-import 'core/enhance/enhance_pack_paths.dart';
+import 'core/enhance/enhance_pack_activation.dart';
 import 'core/library/local_files.dart';
 import 'core/settings/settings_store.dart';
 import 'core/storage/app_database.dart';
@@ -10,15 +10,16 @@ import 'ui/home_page.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (EnhancePackPaths.installed() && EnhancePackPaths.compatible()) {
-    MediaKit.ensureInitialized(libmpv: EnhancePackPaths.libmpv());
-  } else {
-    MediaKit.ensureInitialized();
-  }
+  // Always load the application's own libmpv-2.dll: the video plugin is
+  // linked against it by name, so a second copy would crash. An enhancement
+  // pack is activated by replacing that file (see EnhancePackActivation).
+  EnhancePackActivation().cleanUpStale();
+  MediaKit.ensureInitialized();
   final database = AppDatabase.defaults();
   final repository = SubscriptionRepository(database);
   await repository.migrateFrom(await LocalSeed.read());
   final settings = await SettingsStore.load(subscriptions: repository);
+  settings.vapoursynthRuntime.applyToProcess();
   // `praxino.exe <file>` — used by "Open with" and file associations.
   final initial = args.where((a) => isVideoFile(a) || a.contains('://'));
   runApp(PraxinoApp(settings: settings, initialSource: initial.firstOrNull));

@@ -20,11 +20,13 @@ class EnhancePackPaths {
   static bool installed({String? appData}) =>
       File(libmpv(appData: appData)).existsSync();
 
-  /// media_kit 1.2.x is built against libmpv client API 2.1.
+  /// media_kit 1.2.x needs client API 2.1 or newer within major version 2;
+  /// newer minors only add functions, so 2.6 builds work too.
   static bool isCompatibleVersion(int version) =>
-      (version >> 16) == 2 && (version & 0xFFFF) <= 1;
+      (version >> 16) == 2 && (version & 0xFFFF) >= 1;
 
-  /// Checks the DLL's exported client API version before letting MediaKit load it.
+  /// Checks the DLL's exported client API version before activating it.
+  /// Call this only from the settings flow: it maps the DLL into the process.
   static bool compatible({String? appData}) {
     final path = libmpv(appData: appData);
     if (!File(path).existsSync()) return false;

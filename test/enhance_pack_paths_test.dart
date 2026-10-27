@@ -11,10 +11,12 @@ void main() {
         endsWith(r'libmpv-2.dll'));
   });
 
-  test('only accepts the media_kit client API version', () {
+  test('accepts client API 2.1 and newer 2.x builds', () {
     expect(EnhancePackPaths.isCompatibleVersion((2 << 16) | 1), isTrue);
-    expect(EnhancePackPaths.isCompatibleVersion((2 << 16) | 6), isFalse);
+    expect(EnhancePackPaths.isCompatibleVersion((2 << 16) | 6), isTrue);
+    expect(EnhancePackPaths.isCompatibleVersion((2 << 16) | 0), isFalse);
     expect(EnhancePackPaths.isCompatibleVersion((1 << 16) | 109), isFalse);
+    expect(EnhancePackPaths.isCompatibleVersion((3 << 16) | 0), isFalse);
   });
 
   test('reports whether the DLL is installed', () {    final temp = Directory.systemTemp.createTempSync('praxino-pack-');

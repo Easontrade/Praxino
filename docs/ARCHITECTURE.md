@@ -124,7 +124,7 @@ UI ──► PraxinoPlayer ──► media_kit Player ──► libmpv
 换着色器家族时还要让 `PraxinoPlayer` 按预设选目录（当前 `shaderDirectory` 写死了 `anime4k`，M2-1 会改）。
 真人片建议加 ArtCNN 或 FSRCNNX（Anime4K 是为动画线条设计的，对实拍会涂抹）。
 
-### 5.2 L2 实时补帧（⏳ M2）
+### 5.2 L2 实时补帧（🟡 M2-3：mvtools 应用内已验证，RIFE 待验证）
 
 mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目前使用的 media_kit 发行包，
 自带的 libmpv 没有编译 VapourSynth 支持（M2-3 第一步先验证；如果其实支持，就省掉增强包）。方案：
@@ -132,9 +132,16 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 1. 做一个可选的"增强包"（不进安装包，首次使用时下载到 `%APPDATA%/Praxino/enhance-pack/`）：
    带 VapourSynth 的 `libmpv-2.dll`（例如 shinchiro 的构建，需先用 `mpv --list-filters` / 试加载确认）
    + 便携 Python + VapourSynth + `vs-rife`（TensorRT 后端）/ `mvtools`。
-2. 启动时如果增强包存在，就调用 `MediaKit.ensureInitialized(libmpv: '<增强包>/libmpv-2.dll')` 加载它
-   （media_kit 1.2.6 的 `native_library.dart` 支持这个参数，也支持环境变量 `LIBMPV_LIBRARY_PATH`）。
-   这个调用只能发生在创建任何 `Player` 之前；运行中换 libmpv 必须重启应用，UI 要明确提示。
+2. **增强包必须替换应用目录里的 `libmpv-2.dll`，不能另外加载一份。**
+   `media_kit_video_plugin.dll` 按名字直接导入 `libmpv-2.dll`，Windows 在 `main()` 之前就从应用目录加载它；
+   如果再用 `MediaKit.ensureInitialized(libmpv: '<其它路径>')`，进程里会有两份 libmpv——播放器由一份创建、
+   由另一份渲染，直接访问冲突崩溃（0xC0000005），与 client API 版本无关（2.1 和 2.6 都一样）。
+   所以“启用”= 把自带 DLL 改名为 `libmpv-2.media_kit.dll` 备份、复制增强包 DLL 为 `libmpv-2.dll`
+   （Windows 允许给已加载的 DLL 改名，所以运行中就能操作），重启生效；“停用”反向恢复。
+   见 `EnhancePackActivation`。兼容条件只要求 client API 主版本 2、次版本 ≥ 1。
+   VapourSynth 运行时（便携 Python + `site-packages/vapoursynth`）的路径在设置页填写，启动时由
+   `VapourSynthRuntime` 写入进程环境——要同时写 Win32 环境块和 C 运行时的环境表，
+   否则 Python 读不到 `PYTHONPATH`。
 3. `EnhanceSettings` 加 `interpolation` 字段：`off / mvtools(轻量,CPU) / rife(GPU)`，目标帧率跟随显示器刷新率。
    生成的 vf 要和 L1 的 hqdn3d 合并成一条链（见本节开头），不能直接覆盖 `vf`。
 4. RIFE 很吃显卡：1080p→60fps 在 RTX 4070 以上才稳。UI 要显示实际掉帧数（mpv 属性 `frame-drop-count`、`vo-delayed-frame-count`），掉帧时提示降档。

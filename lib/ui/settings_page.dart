@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/enhance/enhance_pack.dart';
+import '../core/enhance/enhance_pack_activation.dart';
 import '../core/enhance/enhance_pack_paths.dart';
 import '../core/settings/keybindings.dart';
 import '../core/settings/settings_store.dart';
@@ -244,6 +245,11 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _enhancePack() async {
     final manifest = TextEditingController();
     final installed = EnhancePackPaths.installed();
+    final activation = EnhancePackActivation();
+    final python =
+        TextEditingController(text: widget.settings.vapoursynthRuntime.pythonDir);
+    final site =
+        TextEditingController(text: widget.settings.vapoursynthRuntime.siteDir);
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -255,8 +261,24 @@ class _SettingsPageState extends State<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(installed
-                  ? '已安装：${EnhancePackPaths.libmpv()}'
-                  : '未安装。下载带 VapourSynth 的 libmpv 后，重启应用生效。'),
+                  ? '已下载：${EnhancePackPaths.libmpv()}\n'
+                      '${activation.isActive ? '已启用（替换了应用自带的 libmpv）' : '未启用'}'
+                  : '未安装。下载带 VapourSynth 的 libmpv 后启用，重启应用生效。'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: python,
+                decoration: const InputDecoration(
+                  labelText: 'Python 目录（含 python3xx.dll）',
+                  hintText: r'C:\Tools\python',
+                ),
+              ),
+              TextField(
+                controller: site,
+                decoration: const InputDecoration(
+                  labelText: 'VapourSynth 目录（site-packages\\vapoursynth）',
+                  hintText: r'C:\Tools\python\Lib\site-packages\vapoursynth',
+                ),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: manifest,
@@ -277,45 +299,77 @@ class _SettingsPageState extends State<SettingsPage> {
               onPressed: () => Navigator.pop(context, 'remove'),
               child: const Text('移除'),
             ),
+          if (installed)
+            TextButton(
+              onPressed: () => Navigator.pop(
+                  context, activation.isActive ? 'deactivate' : 'activate'),
+              child: Text(activation.isActive ? '停用' : '启用'),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, manifest.text.trim()),
-            child: const Text('下载并校验'),
+            child: const Text('保存 / 下载并启用'),
           ),
         ],
       ),
     );
     if (result == null || !mounted) {
       manifest.dispose();
+      python.dispose();
+      site.dispose();
       return;
     }
-    if (result == 'remove') {
-      final file = File(EnhancePackPaths.libmpv());
-      if (await file.exists()) await file.delete();
+    await widget.settings
+        .setVapoursynthRuntime(pythonDir: python.text, siteDir: site.text);
+    python.dispose();
+    site.dispose();
+    if (!mounted) {
       manifest.dispose();
-      setState(() {});
       return;
     }
 
-    final downloader = EnhancePackDownloader(root: EnhancePackPaths.root());
     try {
-      final decoded = jsonDecode(result);
-      final parsed = EnhancePackManifest.tryFromJson(decoded);
-      if (parsed == null) throw const EnhancePackException('manifest 格式不对');
-      await downloader.download(parsed);
-      if (mounted) {
-        _toast('增强包已下载，重启 Praxino 后生效');
-        setState(() {});
+      switch (result) {
+        case 'remove':
+          activation.deactivate();
+          final file = File(EnhancePackPaths.libmpv());
+          if (await file.exists()) await file.delete();
+          _toast('已移除增强包，重启 Praxino 后恢复自带的 libmpv');
+        case 'deactivate':
+          activation.deactivate();
+          _toast('已停用，重启 Praxino 后生效');
+        case 'activate':
+          _activatePack(activation);
+        case '':
+          _toast('已保存 VapourSynth 路径，重启后生效');
+        default:
+          final parsed = EnhancePackManifest.tryFromJson(jsonDecode(result));
+          if (parsed == null) throw const EnhancePackException('manifest 格式不对');
+          final downloader = EnhancePackDownloader(root: EnhancePackPaths.root());
+          try {
+            await downloader.download(parsed);
+          } finally {
+            downloader.close();
+          }
+          _activatePack(activation);
       }
     } on Exception catch (error) {
       if (mounted) _toast('$error');
     } finally {
-      downloader.close();
       manifest.dispose();
+      if (mounted) setState(() {});
     }
+  }
+
+  void _activatePack(EnhancePackActivation activation) {
+    if (!EnhancePackPaths.compatible()) {
+      throw const EnhancePackException('这个 libmpv 的 client API 低于 2.1，不能启用');
+    }
+    activation.activate(EnhancePackPaths.libmpv());
+    _toast('增强包已启用，重启 Praxino 后生效');
   }
 
   String _toolSummary() {
@@ -485,7 +539,11 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: const Icon(Icons.memory),
             title: const Text('增强包 / 补帧'),
             subtitle: Text(
-              EnhancePackPaths.installed() ? '已安装 libmpv（VapourSynth）' : '未安装',
+              !EnhancePackPaths.installed()
+                  ? '未安装'
+                  : EnhancePackActivation().isActive
+                      ? '已启用 libmpv（VapourSynth）'
+                      : '已下载，未启用',
             ),
             onTap: _enhancePack,
           ),

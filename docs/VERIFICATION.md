@@ -33,13 +33,15 @@
 | 在线字幕 | 已验证（Mock） | ASSRT / OpenSubtitles 搜索、下载、落盘；OpenSubtitles 登录、token 过期、额度用完 |
 | 更新检查 | 已验证（Mock） | 新版本、同/旧版本、跳过、网络错误 |
 | 隐藏桌面启动 | 已验证 | 独立桌面启动，窗口创建成功，不占用可见桌面 |
+| 应用内 mvtools 补帧 | 已验证 | 增强包（shinchiro 2026 构建，client API 2.6）替换应用目录 libmpv；VapourSynth 路径来自设置；1080p 23.976 → 59.94 fps，`vf=vapoursynth` 生效，0 掉帧（`PRAXINO_DIAG_LOG` 每 2 秒采样，持续 12 秒以上） |
+| 运行中启用增强包 | 已验证 | 应用运行时给已加载的 `libmpv-2.dll` 改名并放入新 DLL 成功；重启后加载新 DLL |
 
 ## 未验证 / 外部条件
 
 | 项目 | 原因 |
 | --- | --- |
-| 应用内 VapourSynth 补帧画面 | 现有外部 libmpv 的 client API 为 2.6，media_kit 需要 2.1；兼容性检查会拒绝加载。需要 API 2.1 且带 VapourSynth 的构建 |
-| 应用内 RIFE/mvtools 观感 | 脚本已在独立 mpv 中通过，但应用内仍缺兼容 VS libmpv |
+| 应用内 RIFE 补帧 | 还没有 RIFE 版 `.vpy` 模板（需要 vs-rife / vs-mlrt 插件和模型） |
+| 补帧肉眼观感 | 只验证了帧率和掉帧数，画面需要用户亲自看 |
 | 真实 Stremio addon / 脚本源 | 没有可公开分发的测试 addon；仓库不内置真实源 |
 | 真实在线字幕账号 | 没有 ASSRT/OpenSubtitles 凭证 |
 | GitHub Release 自动发布 | 需要推送 tag；本地只验证了安装包与校验和 |

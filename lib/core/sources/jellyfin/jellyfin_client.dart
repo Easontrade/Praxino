@@ -283,6 +283,14 @@ class JellyfinClient {
     });
   }
 
+  Future<Duration> resumePosition(String itemId) async {
+    final data = await _get('/Users/$userId/Items/$itemId');
+    final userData = data['UserData'];
+    final ticks = userData is Map ? userData['PlaybackPositionTicks'] : null;
+    if (ticks is! num || ticks <= 0) return Duration.zero;
+    return Duration(microseconds: ticks.toInt() ~/ 10);
+  }
+
   static int _languageRank(String language) {
     final lower = language.toLowerCase();
     if (lower.startsWith('zh') || lower.contains('chi')) return 0;

@@ -179,6 +179,20 @@ void main() {
     expired.close();
   });
 
+  test('reads resume position from user data', () async {
+    final api = JellyfinClient(
+      baseUrl: 'https://example.test',
+      token: 't',
+      userId: 'u',
+      deviceId: 'd',
+      client: MockClient((_) async => _json({
+            'UserData': {'PlaybackPositionTicks': 15000000}
+          })),
+    );
+    expect(await api.resumePosition('m1'), const Duration(seconds: 1, milliseconds: 500));
+    api.close();
+  });
+
   test('server settings round-trip', () async {
     SharedPreferences.setMockInitialValues({});
     final settings = await SettingsStore.load();

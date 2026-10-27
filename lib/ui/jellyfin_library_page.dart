@@ -64,10 +64,12 @@ class _JellyfinLibraryPageState extends State<JellyfinLibraryPage> {
     if (item.type == 'Movie' || item.type == 'Episode') {
       try {
         final playback = await _client.playback(item);
+        final resume = await _client.resumePosition(item.id);
         if (!mounted) return;
         await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PlayerPage(
             settings: widget.settings,
+            startPosition: resume,
             onProgress: (position) => unawaited(_client.reportProgress(
               itemId: item.id,
               position: position,

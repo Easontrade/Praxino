@@ -40,6 +40,7 @@ class PlayerPage extends StatefulWidget {
     this.streams = const [],
     this.prefetchNext,
     this.onProgress,
+    this.startPosition = Duration.zero,
   });
 
   final List<String> sources;
@@ -60,6 +61,9 @@ class PlayerPage extends StatefulWidget {
 
   /// Reports playback position for remote servers (Jellyfin/Emby).
   final void Function(Duration position)? onProgress;
+
+  /// Resume position for remote streams opened directly.
+  final Duration startPosition;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -83,6 +87,7 @@ class _PlayerPageState extends State<PlayerPage> {
       ValueNotifier(const []);
   late final DanmakuService _danmakuService;
   int _danmakuRequest = 0;
+  bool _startPositionApplied = false;
   bool _checkingPerformance = false;
   AutoSwitch? _auto;
   PrefetchController<PlayableStream?>? _prefetch;
@@ -197,6 +202,10 @@ class _PlayerPageState extends State<PlayerPage> {
       } catch (_) {
         // A missing subtitle must not interrupt playback.
       }
+    }
+    if (!_startPositionApplied && widget.startPosition > Duration.zero) {
+      _startPositionApplied = true;
+      await _player.player.seek(widget.startPosition);
     }
   }
 

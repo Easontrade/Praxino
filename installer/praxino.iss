@@ -77,3 +77,29 @@ Root: HKCU; Subkey: "Software\Classes\.m4v\OpenWithProgids"; ValueType: string; 
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+
+[Code]
+// Keep an activated enhancement pack across upgrades. [Files] installs the
+// bundled libmpv as libmpv-2.dll; when the user had enabled a pack (backup
+// exists), update the backup and put the pack back in place.
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Bundled, Backup, Pack: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    Bundled := ExpandConstant('{app}\libmpv-2.dll');
+    Backup := ExpandConstant('{app}\libmpv-2.media_kit.dll');
+    Pack := ExpandConstant('{userappdata}\Praxino\enhance-pack\libmpv-2.dll');
+    if FileExists(Backup) then
+    begin
+      if FileExists(Pack) then
+      begin
+        FileCopy(Bundled, Backup, False);
+        FileCopy(Pack, Bundled, False);
+      end
+      else
+        DeleteFile(Backup);
+    end;
+  end;
+end;

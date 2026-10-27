@@ -12,7 +12,7 @@
 | `flutter build windows --release` | 成功 |
 | `flutter test integration_test -d windows` | 本地隐藏桌面 7/7 通过（打开文件、增强预设、增强弹窗在控制栏隐藏后仍可用、设置凭据、订阅导入、在线搜索、离线任务） |
 | GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 278 个单元/Widget 测试 + 7 个集成测试，全通过 |
-| Inno Setup 安装包编译 | 成功（包含降噪黑屏修复）；最终 SHA256 `5662d696cc42d47efb9494a4abb8b0d314590cc9d3acfea1c3a059932ad9bb5d` |
+| Inno Setup 安装包编译 | 成功；升级时保留已启用的增强包；最终 SHA256 `8d48fb89bb28d6105dcabdd054d2670f58b2c73b93caac6ec18617fa77b2d6b6` |
 | 安装包 ANGLE Vulkan 排除 | 已验证：安装目录无 `vulkan-1.dll` / `vk_swiftshader.dll` |
 
 ## 功能验证
@@ -45,8 +45,8 @@
 | 更新检查 | 已验证（Mock） | 新版本、同/旧版本、跳过、网络错误 |
 | 隐藏桌面启动 | 已验证 | 独立桌面启动，窗口创建成功，不占用可见桌面 |
 | 应用内 mvtools 补帧 | 已验证 | 增强包（shinchiro 2026 构建，client API 2.6）替换应用目录 libmpv；VapourSynth 路径来自设置；1080p 23.976 → 59.94 fps，`vf=vapoursynth` 生效，0 掉帧（`PRAXINO_DIAG_LOG` 每 2 秒采样，持续 12 秒以上） |
-| 运行中启用增强包 | 已验证 | 应用运行时给已加载的 `libmpv-2.dll` 改名并放入新 DLL 成功；重启后加载新 DLL |
-| 应用内 RIFE 补帧 | 已验证 | 内置 `rife_ncnn.vpy`（RIFE-ncnn-Vulkan + RIFE v4.6，RTX 5080）：1080p 23.976 → 47.952 fps，启动时掉 3 帧后 22 秒内不再增加 |
+| 运行中启用增强包 | 已验证 | 应用运行时给已加载的 `libmpv-2.dll` 改名并放入新 DLL 成功；重启后加载新 DLL；安装包升级会保留已启用的 pack（iss `[Code]`） |
+| 应用内 RIFE 补帧 | 已验证 | 内置 `rife_ncnn.vpy`（RIFE-ncnn-Vulkan + RIFE v4.6，RTX 5080）：1080p 23.976 → 47.952 fps；叠加 Anime4K 高质量 + 降噪时 40 秒内掉帧 0→3 后稳定，设置保持 RIFE/Quality；自动降档增加 12 秒预热，不再启动即降档 |
 | RIFE 吞吐基准 | 已验证 | 独立 mpv `--untimed` 处理 10 秒 1080p：2 倍约 60fps；固定 60fps 约 37～41fps（GPU 100%），因此模板用 2 倍 |
 | 去掉 ANGLE 附带的 Vulkan 文件后的普通播放 | 已验证 | 无增强包、Anime4K 高质量：1080p 23.976 fps 正常播放；mvtools 回归 59.94 fps |
 

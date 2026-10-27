@@ -129,6 +129,7 @@ class EnhanceSettings {
     if (denoise && denoiseShader != null && denoiseShader.isNotEmpty) {
       shaders.insert(0, denoiseShader);
     }
+    final interpolating = filters.contains('vapoursynth=');
     return {
       'glsl-shaders': shaders.join(listSeparator),
       'deband': deband ? 'yes' : 'no',
@@ -136,7 +137,12 @@ class EnhanceSettings {
       if (deband) 'deband-threshold': '40',
       if (deband) 'deband-grain': '16',
       'vf': filters,
-      'hwdec': filters.contains('vapoursynth=') ? 'auto-copy' : 'auto-safe',
+      'hwdec': interpolating ? 'auto-copy' : 'auto-safe',
+      // VapourSynth replaces the video timestamps. Audio-master sync then
+      // drifts and can mute/drop audio; display-resample keeps audio and video
+      // locked to the display clock instead.
+      if (interpolating) 'video-sync': 'display-resample',
+      if (interpolating) 'audio-pitch-correction': 'yes',
     };
   }
 

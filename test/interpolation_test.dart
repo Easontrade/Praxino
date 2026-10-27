@@ -44,6 +44,8 @@ void main() {
     expect(props['vf'], 'vapoursynth=/cache/mvtools.vpy');
     expect(props['glsl-shaders'], startsWith('/s/denoise.glsl'));
     expect(props['hwdec'], 'auto-copy');
+    expect(props['video-sync'], 'display-resample');
+    expect(props['audio-pitch-correction'], 'yes');
   });
 
   test('each mode uses its bundled template unless overridden', () {

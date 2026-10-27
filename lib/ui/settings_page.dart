@@ -11,6 +11,7 @@ import '../core/settings/keybindings.dart';
 import '../core/settings/settings_store.dart';
 import '../core/subtitles/opensubtitles_provider.dart';
 import '../core/update/update_checker.dart';
+import 'jellyfin_servers_page.dart';
 import 'key_chord_ui.dart';
 import 'offline_tasks_page.dart';
 import 'webdav_servers_page.dart';
@@ -580,6 +581,18 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => WebDavServersPage(settings: widget.settings),
+            )),
+          ),
+          ListTile(
+            leading: const Icon(Icons.video_library_outlined),
+            title: const Text('Jellyfin / Emby'),
+            subtitle: Text(
+              widget.settings.jellyfinServers.isEmpty
+                  ? '未配置服务器'
+                  : '已配置 ${widget.settings.jellyfinServers.length} 个服务器',
+            ),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => JellyfinServersPage(settings: widget.settings),
             )),
           ),
           ListTile(

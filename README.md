@@ -13,11 +13,14 @@
 | 本地播放：拖入即播、同目录自动生成播放列表、最近播放 | ✅ |
 | 字幕：同名字幕自动加载、外挂字幕、ASS 特效（libass） | ✅ |
 | 实时超分：Anime4K 三档，以及去色带、降噪 | ✅ |
-| 在线源：可选兼容 Kazumi 规则（搜索、选集） | 🚧 |
-| 在线源：yt-dlp、TVBox（CMS 接口）、Stremio addon、脚本源 | ⏳ |
-| 弹幕（弹弹play） | ⏳ |
-| 实时补帧（RIFE / mvtools，通过 VapourSynth） | ⏳ |
-| 离线超分 / 补帧（Real-ESRGAN、RIFE ncnn） | ⏳ |
+| 在线源：Kazumi 规则（搜索、选集） | ✅ |
+| 在线源：yt-dlp、TVBox（CMS 接口）、Stremio addon、脚本源 | ✅（真实站点需自行验证） |
+| 弹幕（弹弹play） | ✅（需要 AppId/Secret） |
+| 实时补帧（RIFE / mvtools，通过 VapourSynth） | ✅（需安装[增强包](docs/ENHANCE_PACK.md)） |
+| 离线超分 / 补帧（Real-ESRGAN、RIFE ncnn） | ✅ |
+| WebDAV / OpenList | ✅（真实服务器需自行验证） |
+| Jellyfin / Emby 媒体库 | 🚧（海报墙待补） |
+| AI 双语字幕（本地 Whisper + Claude） | 🚧（管线完成，真实模型与 API 待验证） |
 
 ## 快捷键
 

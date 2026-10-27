@@ -90,15 +90,17 @@ void main() {
     expect(EnhanceAdvisor.lower(UpscalePreset.off), isNull);
   });
 
-  test('lowerInterpolation walks RIFE -> mvtools -> off', () {
+  test('lowerInterpolation walks RIFE -> mvtools -> smooth -> off', () {
     expect(EnhanceAdvisor.lowerInterpolation(InterpolationMode.rife),
         InterpolationMode.mvtools);
     expect(EnhanceAdvisor.lowerInterpolation(InterpolationMode.mvtools),
+        InterpolationMode.smooth);
+    expect(EnhanceAdvisor.lowerInterpolation(InterpolationMode.smooth),
         InterpolationMode.off);
     expect(EnhanceAdvisor.lowerInterpolation(InterpolationMode.off), isNull);
   });
 
-  test('drops lower RIFE to mvtools and then off', () {
+  test('drops lower RIFE to mvtools, smooth and then off', () {
     final advisor = EnhanceAdvisor();
     expect(
       advisor.evaluateInterpolation(
@@ -124,6 +126,15 @@ void main() {
         droppedFrames: 40,
         fps: 60,
         now: start.add(const Duration(seconds: 6)),
+      ),
+      InterpolationMode.smooth,
+    );
+    expect(
+      advisor.evaluateInterpolation(
+        current: InterpolationMode.smooth,
+        droppedFrames: 60,
+        fps: 60,
+        now: start.add(const Duration(seconds: 9)),
       ),
       InterpolationMode.off,
     );

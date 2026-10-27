@@ -48,6 +48,21 @@ void main() {
     expect(props['audio-pitch-correction'], 'yes');
   });
 
+  test('smooth uses mpv interpolation without VapourSynth', () {
+    final settings = const EnhanceSettings(
+      interpolation: InterpolationMode.smooth,
+    );
+    final props = settings.toMpvProperties(
+      shaderDir: '/s',
+      listSeparator: ';',
+    );
+    expect(props['vf'], isEmpty);
+    expect(props['hwdec'], 'auto-safe');
+    expect(props['interpolation'], 'yes');
+    expect(props['video-sync'], 'display-resample');
+    expect(props['tscale'], 'oversample');
+  });
+
   test('each mode uses its bundled template unless overridden', () {
     expect(
       interpolationScriptFor(InterpolationMode.off, templateDir: '/t'),

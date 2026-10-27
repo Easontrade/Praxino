@@ -130,6 +130,7 @@ class EnhanceSettings {
       shaders.insert(0, denoiseShader);
     }
     final interpolating = filters.contains('vapoursynth=');
+    final smooth = interpolation == InterpolationMode.smooth;
     return {
       'glsl-shaders': shaders.join(listSeparator),
       'deband': deband ? 'yes' : 'no',
@@ -141,8 +142,13 @@ class EnhanceSettings {
       // VapourSynth replaces the video timestamps. Audio-master sync then
       // drifts and can mute/drop audio; display-resample keeps audio and video
       // locked to the display clock instead.
-      if (interpolating) 'video-sync': 'display-resample',
-      if (interpolating) 'audio-pitch-correction': 'yes',
+      'video-sync': interpolating || smooth ? 'display-resample' : 'audio',
+      if (interpolating || smooth) 'audio-pitch-correction': 'yes',
+      // mpv's own temporal interpolation: no VapourSynth, no audio loss and
+      // fast seeks, at the cost of some frame blending.
+      if (smooth) 'interpolation': 'yes',
+      if (!smooth) 'interpolation': 'no',
+      if (smooth) 'tscale': 'oversample',
     };
   }
 

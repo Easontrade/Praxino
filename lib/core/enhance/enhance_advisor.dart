@@ -73,7 +73,8 @@ class EnhanceAdvisor {
   static InterpolationMode? lowerInterpolation(InterpolationMode current) =>
       switch (current) {
         InterpolationMode.rife => InterpolationMode.mvtools,
-        InterpolationMode.mvtools => InterpolationMode.off,
+        InterpolationMode.mvtools => InterpolationMode.smooth,
+        InterpolationMode.smooth => InterpolationMode.off,
         InterpolationMode.off => null,
       };
 

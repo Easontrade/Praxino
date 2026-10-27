@@ -117,11 +117,13 @@ class _EnhanceDialog extends StatelessWidget {
                       selected: value.interpolation == mode,
                       title: switch (mode) {
                         InterpolationMode.off => '关闭',
+                        InterpolationMode.smooth => '平滑（内置）',
                         InterpolationMode.mvtools => 'mvtools',
                         InterpolationMode.rife => 'RIFE',
                       },
                       hint: switch (mode) {
                         InterpolationMode.off => '原始帧率',
+                        InterpolationMode.smooth => 'mpv 内置，无 AI、音画稳定、跳转快',
                         InterpolationMode.mvtools => '运动补偿，CPU，轻量',
                         InterpolationMode.rife => 'AI 补帧，GPU（Vulkan），效果更好',
                       },

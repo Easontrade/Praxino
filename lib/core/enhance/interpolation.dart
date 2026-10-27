@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 /// Frame interpolation backend selected by the user.
 enum InterpolationMode {
   off(null),
+  smooth(null),
   mvtools('mvtools_flowfps.vpy'),
   rife('rife_ncnn.vpy');
 
@@ -47,6 +48,7 @@ String buildVideoFilterChain({
 }) {
   final filters = <String>[];
   if (interpolation != InterpolationMode.off &&
+      interpolation != InterpolationMode.smooth &&
       vapoursynthScript != null &&
       vapoursynthScript.isNotEmpty) {
     filters.add('vapoursynth=$vapoursynthScript');

@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import '../core/danmaku/danmaku_engine.dart';
 import '../core/danmaku/danmaku_service.dart';
 import '../core/enhance/enhance_advisor.dart';
+import '../core/enhance/enhance_pack_activation.dart';
 import '../core/enhance/enhance_settings.dart';
 import '../core/enhance/interpolation.dart';
 import '../core/library/local_files.dart';
@@ -209,17 +210,35 @@ class _PlayerPageState extends State<PlayerPage> {
 
   /// Bundled template for the chosen interpolation mode, unless the user
   /// configured their own script in settings.
-  String? _scriptFor(EnhanceSettings value) => interpolationScriptFor(
-        value.interpolation,
-        templateDir: PraxinoPlayer.vapoursynthTemplateDirectory,
-        override: widget.settings.interpolationScriptPath,
-        profile: value.rifeProfile,
-      );
+  String? _scriptFor(EnhanceSettings value) {
+    if (value.interpolation == InterpolationMode.off) return null;
+    // Applying vf=vapoursynth without the pack/runtime makes mpv reject the
+    // whole filter chain; leave it out and warn instead.
+    if (!widget.settings.vapoursynthRuntime.isConfigured ||
+        !EnhancePackActivation().isActive) {
+      return null;
+    }
+    return interpolationScriptFor(
+      value.interpolation,
+      templateDir: PraxinoPlayer.vapoursynthTemplateDirectory,
+      override: widget.settings.interpolationScriptPath,
+      profile: value.rifeProfile,
+    );
+  }
 
   Future<void> _start() async {
+    final script = _scriptFor(widget.settings.enhance);
+    if (widget.settings.enhance.interpolation != InterpolationMode.off &&
+        script == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _toast('补帧未生效：请先在设置里启用增强包并填写 VapourSynth 路径');
+        }
+      });
+    }
     await _player.setEnhance(
       widget.settings.enhance,
-      vapoursynthScript: _scriptFor(widget.settings.enhance),
+      vapoursynthScript: script,
     );
     if (widget.streams.isNotEmpty) {
       await _openStream(widget.streams.first);
@@ -393,9 +412,15 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Future<void> _setEnhance(EnhanceSettings value, {bool byUser = true}) async {
     if (byUser) _advisor.noteUserChoice(DateTime.now());
+    final script = _scriptFor(value);
+    if (byUser &&
+        value.interpolation != InterpolationMode.off &&
+        script == null) {
+      _toast('补帧未生效：请先在设置里启用增强包并填写 VapourSynth 路径');
+    }
     await _player.setEnhance(
       value,
-      vapoursynthScript: _scriptFor(value),
+      vapoursynthScript: script,
     );
     if (!_player.comparing) {
       await widget.settings.setEnhance(value);

@@ -39,6 +39,7 @@ class PlayerPage extends StatefulWidget {
     this.audioUrl,
     this.streams = const [],
     this.prefetchNext,
+    this.onProgress,
   });
 
   final List<String> sources;
@@ -56,6 +57,9 @@ class PlayerPage extends StatefulWidget {
 
   /// Resolves the next episode's stream for prefetching, if there is one.
   final Future<PlayableStream?> Function()? prefetchNext;
+
+  /// Reports playback position for remote servers (Jellyfin/Emby).
+  final void Function(Duration position)? onProgress;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -298,8 +302,10 @@ class _PlayerPageState extends State<PlayerPage> {
 
   void _savePosition() {
     final source = _currentSource;
-    if (source == null || source.contains('://')) return;
+    if (source == null) return;
     final position = _player.player.state.position;
+    if (position > Duration.zero) widget.onProgress?.call(position);
+    if (source.contains('://')) return;
     final duration = _player.player.state.duration;
     if (duration <= Duration.zero || position <= Duration.zero) return;
     if (duration - position <= WatchPoint.keepBeforeEnd) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/settings/settings_store.dart';
@@ -66,6 +68,10 @@ class _JellyfinLibraryPageState extends State<JellyfinLibraryPage> {
         await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PlayerPage(
             settings: widget.settings,
+            onProgress: (position) => unawaited(_client.reportProgress(
+              itemId: item.id,
+              position: position,
+            )),
             streams: [
               PlayableStream(
                 playback.url,

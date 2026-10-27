@@ -7,12 +7,12 @@
 | 检查 | 结果 |
 | --- | --- |
 | `flutter analyze` | 0 issue |
-| `flutter test` | 203 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 272 全通过 |
+| `flutter test` | 203 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 273 全通过 |
 | `flutter build windows --debug` | 成功 |
 | `flutter build windows --release` | 成功 |
-| `flutter test integration_test -d windows` | 本地隐藏桌面 6/6 通过（打开文件、增强预设、设置凭据、订阅导入、在线搜索、离线任务） |
-| GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 272 个单元/Widget 测试 + 6 个集成测试，全通过 |
-| Inno Setup 安装包编译 | 成功（包含降噪黑屏修复）；最终 SHA256 `781ebe4a9032930befe32b09051de55ce26c8dbcb6015466899b51bb7aa794d0` |
+| `flutter test integration_test -d windows` | 本地隐藏桌面 7/7 通过（打开文件、增强预设、增强弹窗在控制栏隐藏后仍可用、设置凭据、订阅导入、在线搜索、离线任务） |
+| GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 273 个单元/Widget 测试 + 7 个集成测试，全通过 |
+| Inno Setup 安装包编译 | 成功（包含降噪黑屏修复）；最终 SHA256 `5d4ae703f9ed03e0f838f2eecf22d08a58d9f7f6441bbe411b3c753581baf292` |
 | 安装包 ANGLE Vulkan 排除 | 已验证：安装目录无 `vulkan-1.dll` / `vk_swiftshader.dll` |
 
 ## 功能验证
@@ -28,7 +28,8 @@
 | WebDAV / OpenList | 已验证（Mock） | PROPFIND、中文/空格路径、401、同目录播放列表、Basic 认证头 |
 | WebDAV 续播 / 下一集 / 同目录字幕 | 已验证（Mock） | 续播 key 去掉凭据和查询串（单测）；同目录视频按自然顺序进播放列表，下一集走 mpv 原生列表；字幕按 `<视频>.<语言>.ass` 匹配并中文优先；真实 OpenList 未验证 |
 | 增强包一键安装 | 已验证（Mock） | 多文件 manifest、SHA256、zip 解压、`..` 路径拒绝、Python/VapourSynth 路径自动发现；真实大文件包未下载验证 |
-| 界面集成测试 | 已验证（本地隐藏桌面） | `integration_test/app_test.dart` 6/6：首页打开文件、增强菜单持久化、设置页凭据、订阅 JSON 导入、注入源搜索选集、离线任务暂停；CI 待推送验证 |
+| 界面集成测试 | 已验证（本地隐藏桌面） | `integration_test/app_test.dart` 7/7：首页打开文件、增强菜单持久化、增强弹窗在控制栏隐藏后仍保持打开并可切换、设置页凭据、订阅 JSON 导入、注入源搜索选集、离线任务暂停；CI 待推送验证 |
+| 增强弹窗抗控制栏自动隐藏 | 已验证（集成测试，真实鼠标事件） | 打开弹窗后把鼠标移到弹窗上并等待 4 秒（超过控制栏 3 秒隐藏时间），弹窗仍在，并从弹窗成功切换到 Anime4K 均衡 |
 | AI 双语字幕管线 | 已验证（Mock） | Whisper JSON 解析、DeepSeek 对齐/重试/回退、术语表、40 句分批、ASS/SRT 生成、缓存命中不重复计费、费用确认、Key 缺失提示；真实 Whisper/DeepSeek 未验证 |
 | AI 字幕设置与任务类型 | 已验证（Widget/单测） | 设置页保存 Whisper/DeepSeek 配置；离线任务页区分超分与双语字幕、暂停排队任务；旧任务 JSON 无 `type` 时回退为超分 |
 | 内置 libmpv 的降噪 | 已验证 | 内置 libmpv 没有 `hqdn3d`，旧的 `vf=lavfi` 会让视频输出失败并黑屏；改成 `denoise.glsl` GPU shader 后，在“Anime4K 高质量 + 去色带 + 降噪”的持久化设置下，1080p 23.976 正常播放（`[stats] height=1080 fps=23.976`，进度写入 watch history） |
@@ -74,4 +75,5 @@ QuickJS 测试需要先构建 Windows 插件 DLL：
 $env:FLUTTER_QJS_NEXT_LIBRARY = (Resolve-Path "build\windows\x64\runner\Release\flutter_qjs_next_plugin.dll")
 flutter test
 ```
+
 

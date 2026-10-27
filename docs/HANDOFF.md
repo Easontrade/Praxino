@@ -14,7 +14,7 @@
   [`ENHANCE_PACK.md`](ENHANCE_PACK.md)。
 - **AI 双语字幕**：本地 Whisper 识别 + DeepSeek 分段翻译 + 双语 ASS/中文 SRT + 离线队列 + 费用确认；
   真实 Whisper/DeepSeek 调用尚未验证。
-- **Windows 集成测试**：`integration_test/app_test.dart` 6 条流程，本地隐藏桌面全过；CI 步骤已加，待推送验证。
+- **Windows 集成测试**：`integration_test/app_test.dart` 7 条流程，本地隐藏桌面全过；CI 步骤已加，待推送验证。
 - 已验证与未验证的项目逐条记在 [`VERIFICATION.md`](VERIFICATION.md)。
 
 ## 剩余工作（按建议顺序）
@@ -65,4 +65,5 @@
 - 本地分支 `backup/pre-rewrite`、`backup/pre-squash` 是历史改写前的备份，**不要推送**；确认无用后删除。
 - 测试 QuickJS 需要先构建，并设置 `FLUTTER_QJS_NEXT_LIBRARY` 指向构建出的 `flutter_qjs_next_plugin.dll`
   （CI 已这样做）。
+
 

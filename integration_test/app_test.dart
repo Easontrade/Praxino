@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:media_kit/media_kit.dart';
@@ -45,6 +46,15 @@ void main() {
     );
     expect(p.equals(settings.recent.single, _videoPath()), isTrue);
     expect(find.byType(PlayerPage), findsOneWidget);
+
+    // C must work even while media_kit's own controls hold the focus.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyC);
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(find.textContaining('对比：原始画面'), findsOneWidget);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyC);
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(find.textContaining('已恢复画质增强'), findsOneWidget);
+
     await _disposePlayer(tester);
   });
 

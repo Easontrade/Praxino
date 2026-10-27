@@ -119,6 +119,7 @@ class _PlayerPageState extends State<PlayerPage> {
     _history = widget.settings.watchHistory;
     _keys = widget.settings.keybindings;
     _danmakuService = DanmakuService(settings: widget.settings);
+    HardwareKeyboard.instance.addHandler(_onGlobalKey);
     _player.player.stream.playlist.listen(_onPlaylistChanged);
     _historyTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _savePosition());
@@ -436,28 +437,29 @@ class _PlayerPageState extends State<PlayerPage> {
     if (mounted) await widget.settings.setEnhance(_player.enhance.value);
   }
 
-  KeyEventResult _onCompareKey(FocusNode node, KeyEvent event) {
-    if (event.logicalKey != LogicalKeyboardKey.keyC) {
-      return KeyEventResult.ignored;
+  /// Global so it works even when media_kit's inner controls own the focus.
+  bool _onGlobalKey(KeyEvent event) {
+    if (event.logicalKey != LogicalKeyboardKey.keyC) return false;
+    if (event is KeyUpEvent) {
+      if (!_player.comparing) return false;
+      unawaited(_endCompare());
+      _toast('已恢复画质增强');
+      return true;
     }
+    if (event is! KeyDownEvent) return false;
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isControlPressed ||
         keyboard.isAltPressed ||
         keyboard.isShiftPressed ||
         keyboard.isMetaPressed) {
-      return KeyEventResult.ignored;
+      return false;
     }
-    if (event is KeyDownEvent) {
-      unawaited(_player.beginCompare());
-      _toast('对比：原始画面（松开 C 恢复）');
-      return KeyEventResult.handled;
-    }
-    if (event is KeyUpEvent) {
-      unawaited(_endCompare());
-      _toast('已恢复画质增强');
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
+    // Do not steal C while a dialog (settings, subtitles, open URL) is open.
+    if (ModalRoute.of(context)?.isCurrent != true) return false;
+    if (_player.comparing) return true;
+    unawaited(_player.beginCompare());
+    _toast('对比：原始画面（松开 C 恢复）');
+    return true;
   }
 
   Future<void> _checkPerformance() async {
@@ -696,6 +698,7 @@ class _PlayerPageState extends State<PlayerPage> {
     _historyTimer?.cancel();
     _watchdog?.cancel();
     _advisorTimer?.cancel();
+    HardwareKeyboard.instance.removeHandler(_onGlobalKey);
     _danmakuRequest++;
     _danmakuService.close();
     _danmakuItems.dispose();
@@ -768,7 +771,6 @@ class _PlayerPageState extends State<PlayerPage> {
         // even before the controls have been hovered.
         child: Focus(
           autofocus: true,
-          onKeyEvent: _onCompareKey,
           onFocusChange: (hasFocus) {
             if (!hasFocus && _player.comparing) unawaited(_endCompare());
           },

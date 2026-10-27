@@ -10,9 +10,9 @@
 | `flutter test` | 203 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 278 全通过 |
 | `flutter build windows --debug` | 成功 |
 | `flutter build windows --release` | 成功 |
-| `flutter test integration_test -d windows` | 本地隐藏桌面 7/7 通过（打开文件、增强预设、增强弹窗在控制栏隐藏后仍可用、设置凭据、订阅导入、在线搜索、离线任务） |
+| `flutter test integration_test -d windows` | 本地隐藏桌面 7/7 通过（打开文件并验证 C 对比、增强预设、增强弹窗在控制栏隐藏后仍可用、设置凭据、订阅导入、在线搜索、离线任务） |
 | GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 278 个单元/Widget 测试 + 7 个集成测试，全通过 |
-| Inno Setup 安装包编译 | 成功；升级时保留已启用的增强包；最终 SHA256 `8d48fb89bb28d6105dcabdd054d2670f58b2c73b93caac6ec18617fa77b2d6b6` |
+| Inno Setup 安装包编译 | 成功；升级时保留已启用的增强包；最终 SHA256 `a5aec3dc7af62f6a297cf7ed4406947f418c6c033bb7d3706b7ca986a7f4eae8` |
 | 安装包 ANGLE Vulkan 排除 | 已验证：安装目录无 `vulkan-1.dll` / `vk_swiftshader.dll` |
 
 ## 功能验证
@@ -77,6 +77,7 @@ QuickJS 测试需要先构建 Windows 插件 DLL：
 $env:FLUTTER_QJS_NEXT_LIBRARY = (Resolve-Path "build\windows\x64\runner\Release\flutter_qjs_next_plugin.dll")
 flutter test
 ```
+
 
 
 

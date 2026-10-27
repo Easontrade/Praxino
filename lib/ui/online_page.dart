@@ -50,6 +50,7 @@ class _OnlinePageState extends State<OnlinePage> {
   List<SourceAdapter> _adapters = const [];
   Map<String, SourceAdapter> _byId = const {};
   bool _searching = false;
+  final Set<String> _unresponsive = {};
   SourceReportRunner? _rankRunner;
   List<SourceReportEntry> _rankEntries = const [];
   int _rankDone = 0;
@@ -83,6 +84,7 @@ class _OnlinePageState extends State<OnlinePage> {
       for (final subscription in widget.settings.subscriptions)
         if (subscription.enabled) ...subscription.toAdapters(client: client),
     ];
+    _unresponsive.clear();
     if (await YtDlpAdapter.isAvailable()) {
       adapters.add(YtDlpAdapter());
     }
@@ -160,9 +162,15 @@ class _OnlinePageState extends State<OnlinePage> {
       _rankTotal = 0;
       _rankRunning = false;
     });
-    final registry = SourceRegistry(sources: _adapters);
+    final registry = SourceRegistry(
+      sources: [
+        for (final adapter in _adapters)
+          if (!_unresponsive.contains(adapter.id)) adapter,
+      ],
+    );
     await for (final result in registry.search(query)) {
       if (!mounted) return;
+      if (result.hasError) _unresponsive.add(result.sourceId);
       final items = [...result.items]..sort((a, b) => TitleMatcher.score(
             query,
             b.title,
@@ -357,8 +365,21 @@ class _OnlinePageState extends State<OnlinePage> {
     if (_results.isEmpty) {
       return const Center(child: Text('搜索后，结果会按源分组显示在这里。'));
     }
+    final okCount = _results
+        .where((result) => !result.hasError && result.items.isNotEmpty)
+        .length;
+    final failedCount =
+        _results.where((result) => result.hasError).length;
     return ListView(
       children: [
+        if (_results.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(
+              '$okCount 个源有结果 · $failedCount 个源未响应',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         if (_rankRunning || _rankEntries.isNotEmpty) _rankingSection(),
         if (_rankEntries.isNotEmpty) const Divider(thickness: 2),
         for (final result
@@ -379,12 +400,11 @@ class _OnlinePageState extends State<OnlinePage> {
               ),
           const Divider(),
         ],
-        if (_results.any((result) => result.hasError))
+        if (failedCount > 0)
           ExpansionTile(
-            leading: const Icon(Icons.error_outline),
-            title: Text(
-              '搜索失败（${_results.where((result) => result.hasError).length} 个源）',
-            ),
+            leading: const Icon(Icons.cloud_off_outlined),
+            title: Text('其他源未响应（$failedCount）'),
+            subtitle: const Text('多为失效的公开 TVBox 配置或网络超时，不影响上方可用源'),
             children: [
               for (final result
                   in _results.where((result) => result.hasError))

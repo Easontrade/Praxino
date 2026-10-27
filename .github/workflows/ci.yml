@@ -49,6 +49,10 @@ jobs:
           $env:FLUTTER_QJS_NEXT_LIBRARY = $dll.Path
           flutter test
 
+      - name: Integration test (Windows)
+        shell: pwsh
+        run: flutter test integration_test -d windows
+
       - uses: actions/upload-artifact@v4
         with:
           name: praxino-windows-x64

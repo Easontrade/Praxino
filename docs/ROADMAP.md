@@ -465,7 +465,11 @@
 
 ## M7 质量与验收
 
-### M7-1 界面集成测试（integration_test） ⏳
+### M7-1 界面集成测试（integration_test） 🟡
+
+> 🟡 部分完成：`integration_test/app_test.dart` 覆盖 6 条流程，本地隐藏桌面实测全过；
+> 订阅导入与在线搜索分成两条测试（搜索用注入的 adapter，不访问网络）；CI 步骤已加，
+> 待推送后确认 GitHub Actions 上也能建窗口运行。
 - **目标**：用 Flutter 官方 `integration_test` 在应用内部驱动界面，替代隐藏桌面 + 模拟点击的方案。
 - **文件**：`pubspec.yaml`（dev 依赖 `integration_test`）、`integration_test/*.dart`（新建）、
   `.github/workflows/ci.yml`

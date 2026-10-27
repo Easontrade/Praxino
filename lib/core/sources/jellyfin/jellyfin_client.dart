@@ -166,6 +166,17 @@ class JellyfinClient {
     return _items(data);
   }
 
+  Future<List<JellyfinItem>> search(String term) async {
+    final data = await _get('/Users/$userId/Items', {
+      'SearchTerm': term,
+      'Recursive': 'true',
+      'IncludeItemTypes': 'Movie,Series,Episode,BoxSet',
+      'Fields': 'PrimaryImageAspectRatio,RunTimeTicks',
+      'Limit': '50',
+    });
+    return _items(data);
+  }
+
   Future<JellyfinPlayback> playback(JellyfinItem item) async {
     final data = await _get('/Users/$userId/Items/${item.id}');
     final sources = data['MediaSources'];

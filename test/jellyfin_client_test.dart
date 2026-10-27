@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:praxino/core/sources/jellyfin/jellyfin_adapter.dart';
 import 'package:praxino/core/sources/jellyfin/jellyfin_client.dart';
 
 http.Response _json(Object body, {int status = 200}) =>
@@ -98,6 +99,47 @@ void main() {
     expect(playback.headers['X-Emby-Token'], 't');
     expect(playback.subtitles.first.language, 'chi');
     expect(playback.subtitles.first.url, contains('/Subtitles/2/Stream.ass'));
+    api.close();
+  });
+
+  test('adapter searches, expands movies and resolves subtitles', () async {
+    final client = MockClient((request) async {
+      if (request.url.path == '/Users/u/Items') {
+        return _json({
+          'Items': [
+            {'Id': 'm1', 'Name': 'Demo', 'Type': 'Movie'}
+          ]
+        });
+      }
+      if (request.url.path == '/Users/u/Items/m1') {
+        return _json({
+          'MediaSources': [
+            {
+              'Id': 's1',
+              'MediaStreams': [
+                {'Type': 'Subtitle', 'Index': 2, 'Language': 'chi', 'Codec': 'srt'}
+              ]
+            }
+          ]
+        });
+      }
+      return _json({}, status: 404);
+    });
+    final api = JellyfinClient(
+      baseUrl: 'https://example.test',
+      token: 't',
+      userId: 'u',
+      deviceId: 'd',
+      client: client,
+    );
+    final adapter = JellyfinAdapter(name: 'Home', client: api);
+    final hits = await adapter.search('Demo');
+    expect(hits.single.title, 'Demo');
+    final groups = await adapter.episodes(hits.single);
+    expect(groups.single.episodes.single.url, 'Movie|m1');
+    final stream = await adapter.resolve(groups.single.episodes.single);
+    expect(stream!.subtitleLanguages, ['chi']);
+    expect(stream.subtitleUrls['chi'], contains('/Subtitles/2/Stream.srt'));
     api.close();
   });
 

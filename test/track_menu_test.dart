@@ -38,24 +38,25 @@ void main() {
     await tester.tap(find.text('国语'));
     await tester.pumpAndSettle();
     expect(audio, 'a2');
+    // The dialog stays open so several tracks can be picked in one go.
+    expect(find.text('音轨'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.audiotrack_outlined));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('关闭字幕'));
     await tester.pumpAndSettle();
     expect(subtitle, isNull);
 
-    await tester.tap(find.byIcon(Icons.audiotrack_outlined));
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('English').at(1),
+      160,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.text('English').at(1));
     await tester.pumpAndSettle();
     expect(secondary, 's2');
 
-    await tester.tap(find.byIcon(Icons.audiotrack_outlined));
+    await tester.tap(find.widgetWithText(TextButton, '关闭'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('关闭'));
-    await tester.pumpAndSettle();
-    expect(secondary, isNull);
+    expect(find.text('音轨'), findsNothing);
   });
 
   testWidgets('is disabled when there are no tracks', (tester) async {

@@ -14,7 +14,7 @@
 | 字幕：同名字幕自动加载、外挂字幕、ASS 特效（libass） | ✅ |
 | 实时超分：Anime4K 三档，以及去色带、降噪 | ✅ |
 | 在线源：Kazumi 规则（搜索、选集） | ✅ |
-| 源排行：逐源检测可播放性、质量、直链和延迟 | ✅ |
+| 源排行：搜索后自动检测可播放性、质量、直链和延迟 | ✅ |
 | 在线源：yt-dlp、TVBox（CMS 接口）、Stremio addon、脚本源 | ✅（真实站点需自行验证） |
 | 弹幕（弹弹play） | ✅（需要 AppId/Secret） |
 | 实时补帧（RIFE / mvtools，通过 VapourSynth） | ✅（需安装[增强包](docs/ENHANCE_PACK.md)） |
@@ -56,4 +56,5 @@ flutter run -d windows
 ## 许可证
 
 [GPL-3.0](LICENSE)。第三方资源的许可证放在各自的目录里。
+
 

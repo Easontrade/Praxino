@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
@@ -12,6 +13,7 @@ import '../core/sources/script/script_adapter.dart';
 import '../core/sources/source_adapter.dart';
 import '../core/sources/source_registry.dart';
 import '../core/sources/source_report.dart';
+import '../core/sources/source_report_runner.dart';
 import '../core/sources/stremio/stremio_adapter.dart';
 import '../core/sources/tvbox/tvbox_adapter.dart';
 import '../core/sources/tvbox/tvbox_config.dart';
@@ -47,6 +49,11 @@ class _OnlinePageState extends State<OnlinePage> {
   List<SourceAdapter> _adapters = const [];
   Map<String, SourceAdapter> _byId = const {};
   bool _searching = false;
+  SourceReportRunner? _rankRunner;
+  List<SourceReportEntry> _rankEntries = const [];
+  int _rankDone = 0;
+  int _rankTotal = 0;
+  bool _rankRunning = false;
 
   @override
   void initState() {
@@ -56,6 +63,7 @@ class _OnlinePageState extends State<OnlinePage> {
 
   @override
   void dispose() {
+    _rankRunner?.close();
     _client?.close();
     _query.dispose();
     super.dispose();
@@ -140,9 +148,14 @@ class _OnlinePageState extends State<OnlinePage> {
       _toast('还没有启用的订阅源，先在右上角添加订阅');
       return;
     }
+    _rankRunner?.close();
     setState(() {
       _searching = true;
       _results.clear();
+      _rankEntries = const [];
+      _rankDone = 0;
+      _rankTotal = 0;
+      _rankRunning = false;
     });
     final registry = SourceRegistry(sources: _adapters);
     await for (final result in registry.search(query)) {
@@ -158,7 +171,67 @@ class _OnlinePageState extends State<OnlinePage> {
             error: result.error,
           )));
     }
-    if (mounted) setState(() => _searching = false);
+    if (!mounted) return;
+    setState(() => _searching = false);
+    _startRanking(_reportInputs());
+  }
+
+  List<SourceReportInput> _reportInputs() {
+    final query = _query.text.trim();
+    return [
+      for (final result in _results)
+        if (_byId[result.sourceId] != null &&
+            result.items
+                .where((item) =>
+                    TitleMatcher.score(query, item.title).score >= 0.45)
+                .isNotEmpty)
+          SourceReportInput(
+            adapter: _byId[result.sourceId]!,
+            items: [
+              for (final item in result.items)
+                if (TitleMatcher.score(query, item.title).score >= 0.45) item,
+            ],
+          ),
+    ];
+  }
+
+  void _startRanking(List<SourceReportInput> inputs) {
+    _rankRunner?.close();
+    if (inputs.isEmpty) {
+      setState(() {
+        _rankEntries = const [];
+        _rankDone = 0;
+        _rankTotal = 0;
+        _rankRunning = false;
+      });
+      return;
+    }
+    final total = inputs.fold(0, (sum, input) => sum + input.items.length);
+    final runner = SourceReportRunner(
+      query: _query.text.trim(),
+      inputs: inputs,
+    );
+    _rankRunner = runner;
+    setState(() {
+      _rankEntries = const [];
+      _rankDone = 0;
+      _rankTotal = total;
+      _rankRunning = true;
+    });
+    unawaited(runner.run(onUpdate: () {
+      if (!mounted || _rankRunner != runner) return;
+      setState(() {
+        _rankEntries = List.of(runner.entries);
+        _rankDone = runner.done;
+        _rankRunning = runner.running;
+      });
+    }));
+  }
+
+  Future<void> _copy(String link) async {
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    _toast('链接已复制');
   }
 
   Future<void> _open(SourceSearchResult result, MediaSummary media) async {
@@ -205,7 +278,7 @@ class _OnlinePageState extends State<OnlinePage> {
         title: const Text('在线搜索'),
         actions: [
           IconButton(
-            tooltip: '源排行',
+            tooltip: '完整源排行',
             icon: const Icon(Icons.leaderboard_outlined),
             onPressed: _results.isEmpty ? null : _openSourceReport,
           ),
@@ -273,6 +346,8 @@ class _OnlinePageState extends State<OnlinePage> {
     }
     return ListView(
       children: [
+        if (_rankRunning || _rankEntries.isNotEmpty) _rankingSection(),
+        if (_rankEntries.isNotEmpty) const Divider(thickness: 2),
         for (final result in _results) ...[
           ListTile(
             title: Text(result.sourceName),
@@ -297,6 +372,81 @@ class _OnlinePageState extends State<OnlinePage> {
               ),
           const Divider(),
         ],
+      ],
+    );
+  }
+
+  Widget _rankingSection() {
+    final progress = _rankTotal == 0 ? null : _rankDone / _rankTotal;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.leaderboard_outlined),
+          title: const Text('源排行（自动检测）'),
+          subtitle: Text(_rankRunning
+              ? '正在检测 $_rankDone / $_rankTotal 个源'
+              : '可播放优先，其次质量、延迟；点击行复制链接'),
+          trailing: _rankRunning
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : IconButton(
+                  tooltip: '重新检测',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () => _startRanking(_reportInputs()),
+                ),
+        ),
+        if (_rankRunning) LinearProgressIndicator(value: progress),
+        for (final entry in _rankEntries)
+          ListTile(
+            dense: true,
+            leading: Icon(
+              switch (entry.status) {
+                SourceReportStatus.reachable => Icons.check_circle_outline,
+                SourceReportStatus.unresolved => Icons.travel_explore,
+                SourceReportStatus.unreachable => Icons.error_outline,
+              },
+              color: switch (entry.status) {
+                SourceReportStatus.reachable => Colors.green,
+                SourceReportStatus.unresolved => Colors.amber,
+                SourceReportStatus.unreachable => Colors.red,
+              },
+            ),
+            title: Text('${entry.sourceName} · ${entry.title}'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${entry.statusLabel} · ${entry.quality}'
+                  '${entry.latency == null ? '' : ' · ${entry.latency!.inMilliseconds} ms'}'
+                  '${entry.detail.isEmpty ? '' : ' · ${entry.detail}'}',
+                  style: TextStyle(
+                    color: switch (entry.status) {
+                      SourceReportStatus.reachable => Colors.green,
+                      SourceReportStatus.unresolved => Colors.amber,
+                      SourceReportStatus.unreachable => Colors.red,
+                    },
+                  ),
+                ),
+                Text(
+                  entry.link,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            isThreeLine: true,
+            trailing: IconButton(
+              tooltip: '复制链接',
+              icon: const Icon(Icons.copy),
+              onPressed: () => _copy(entry.link),
+            ),
+            onTap: () => _copy(entry.link),
+          ),
       ],
     );
   }

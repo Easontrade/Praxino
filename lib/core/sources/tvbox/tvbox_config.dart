@@ -40,6 +40,12 @@ class TvBoxConfigParser {
       if (!(api.startsWith('http://') || api.startsWith('https://'))) {
         continue;
       }
+      final parsed = Uri.tryParse(api);
+      if (parsed == null || parsed.host.isEmpty) {
+        // Broken configs sometimes contain percent-encoded hosts such as
+        // `c.%E5%B0%8F%E8%83%A1.icu`; skip them instead of failing the search.
+        continue;
+      }
       if (!seen.add(api)) continue;
       final name = '${item['name'] ?? item['key'] ?? api}';
       result.add(TvBoxSite(

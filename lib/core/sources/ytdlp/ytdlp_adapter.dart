@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import '../../process/process_runner.dart';
 import '../source_adapter.dart';
@@ -13,6 +14,21 @@ class YtDlpAdapter implements SourceAdapter {
 
   final String executable;
   final ProcessRunner _runner;
+
+  /// Whether the executable can be found before adding it to search results;
+  /// avoids a noisy ProcessException when yt-dlp is not installed.
+  static Future<bool> isAvailable({String executable = 'yt-dlp'}) async {
+    try {
+      final result = await Process.run(
+        executable,
+        const ['--version'],
+        runInShell: true,
+      );
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   String get id => 'ytdlp';

@@ -81,8 +81,10 @@ class _OnlinePageState extends State<OnlinePage> {
     final adapters = <SourceAdapter>[
       for (final subscription in widget.settings.subscriptions)
         if (subscription.enabled) ...subscription.toAdapters(client: client),
-      YtDlpAdapter(),
     ];
+    if (await YtDlpAdapter.isAvailable()) {
+      adapters.add(YtDlpAdapter());
+    }
     for (final extra in widget.settings.extraSources.where((e) => e.enabled)) {
       try {
         switch (extra.type) {
@@ -176,20 +178,29 @@ class _OnlinePageState extends State<OnlinePage> {
     _startRanking(_reportInputs());
   }
 
+  bool _relevant(String query, String title) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    if (title.toLowerCase().contains(q)) return true;
+    final normalizedTitle = TitleMatcher.normalizeTitle(title);
+    final normalizedQuery = TitleMatcher.normalizeTitle(query);
+    if (normalizedQuery.isNotEmpty && normalizedTitle.contains(normalizedQuery)) {
+      return true;
+    }
+    return TitleMatcher.score(query, title).score >= 0.45;
+  }
+
   List<SourceReportInput> _reportInputs() {
     final query = _query.text.trim();
     return [
       for (final result in _results)
         if (_byId[result.sourceId] != null &&
-            result.items
-                .where((item) =>
-                    TitleMatcher.score(query, item.title).score >= 0.45)
-                .isNotEmpty)
+            result.items.any((item) => _relevant(query, item.title)))
           SourceReportInput(
             adapter: _byId[result.sourceId]!,
             items: [
               for (final item in result.items)
-                if (TitleMatcher.score(query, item.title).score >= 0.45) item,
+                if (_relevant(query, item.title)) item,
             ],
           ),
     ];
@@ -348,19 +359,13 @@ class _OnlinePageState extends State<OnlinePage> {
       children: [
         if (_rankRunning || _rankEntries.isNotEmpty) _rankingSection(),
         if (_rankEntries.isNotEmpty) const Divider(thickness: 2),
-        for (final result in _results) ...[
+        for (final result
+            in _results.where((result) => !result.hasError)) ...[
           ListTile(
             title: Text(result.sourceName),
-            subtitle: Text(result.hasError
-                ? '搜索失败'
-                : '${result.items.length} 个结果'),
+            subtitle: Text('${result.items.length} 个结果'),
           ),
-          if (result.hasError)
-            ListTile(
-              leading: const Icon(Icons.error_outline),
-              title: Text('${result.error}'),
-            )
-          else if (result.items.isEmpty)
+          if (result.items.isEmpty)
             const ListTile(title: Text('没有结果'))
           else
             for (final media in result.items)
@@ -372,6 +377,22 @@ class _OnlinePageState extends State<OnlinePage> {
               ),
           const Divider(),
         ],
+        if (_results.any((result) => result.hasError))
+          ExpansionTile(
+            leading: const Icon(Icons.error_outline),
+            title: Text(
+              '搜索失败（${_results.where((result) => result.hasError).length} 个源）',
+            ),
+            children: [
+              for (final result
+                  in _results.where((result) => result.hasError))
+                ListTile(
+                  dense: true,
+                  title: Text(result.sourceName),
+                  subtitle: Text('${result.error}'),
+                ),
+            ],
+          ),
       ],
     );
   }

@@ -122,11 +122,26 @@ class _JellyfinLibraryPageState extends State<JellyfinLibraryPage> {
                       itemCount: _items.length,
                       itemBuilder: (context, index) {
                         final item = _items[index];
+                        final poster = item.imageTag == null
+                            ? null
+                            : Image.network(
+                                '${_client.baseUrl.replaceAll(RegExp(r'/+$'), '')}'
+                                '/Items/${item.id}/Images/Primary'
+                                '?maxWidth=96&tag=${item.imageTag}',
+                                headers: {'X-Emby-Token': _client.token},
+                                width: 40,
+                                height: 56,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => const Icon(
+                                  Icons.movie_outlined,
+                                ),
+                              );
                         return ListTile(
-                          leading: Icon(item.type == 'Movie' ||
-                                  item.type == 'Episode'
-                              ? Icons.movie_outlined
-                              : Icons.folder_outlined),
+                          leading: poster ??
+                              Icon(item.type == 'Movie' ||
+                                      item.type == 'Episode'
+                                  ? Icons.movie_outlined
+                                  : Icons.folder_outlined),
                           title: Text(item.displayName),
                           subtitle: Text(item.type),
                           onTap: () => _open(item),

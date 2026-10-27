@@ -12,7 +12,7 @@
 | `flutter build windows --release` | 成功 |
 | `flutter test integration_test -d windows` | 本地隐藏桌面 6/6 通过（打开文件、增强预设、设置凭据、订阅导入、在线搜索、离线任务） |
 | GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 271 个单元/Widget 测试 + 6 个集成测试，全通过 |
-| Inno Setup 安装包编译 | 成功；最终 SHA256 `ed5ad5c4e128807d9f069a838e952e42e2ccf1baf5a321716c8b63c83e8e705d` |
+| Inno Setup 安装包编译 | 成功（包含 DeepSeek 翻译改动）；最终 SHA256 `de7fff80376dc4e8f30b4c8ea6705b4effb30c2d6b34c4270eeece4c630e9df6` |
 | 安装包 ANGLE Vulkan 排除 | 已验证：安装目录无 `vulkan-1.dll` / `vk_swiftshader.dll` |
 
 ## 功能验证

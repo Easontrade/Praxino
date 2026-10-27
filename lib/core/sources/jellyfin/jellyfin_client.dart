@@ -15,6 +15,64 @@ class JellyfinAuthException extends JellyfinException {
   const JellyfinAuthException(super.message);
 }
 
+/// Persisted login for one Jellyfin/Emby server.
+class JellyfinServer {
+  const JellyfinServer({
+    required this.name,
+    required this.baseUrl,
+    required this.userId,
+    required this.token,
+    required this.deviceId,
+    this.isEmby = false,
+  });
+
+  final String name;
+  final String baseUrl;
+  final String userId;
+  final String token;
+  final String deviceId;
+  final bool isEmby;
+
+  JellyfinClient client() => JellyfinClient(
+        baseUrl: baseUrl,
+        token: token,
+        userId: userId,
+        deviceId: deviceId,
+        isEmby: isEmby,
+      );
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        'baseUrl': baseUrl,
+        'userId': userId,
+        'token': token,
+        'deviceId': deviceId,
+        'isEmby': isEmby,
+      };
+
+  static JellyfinServer? tryFromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final name = raw['name'];
+    final baseUrl = raw['baseUrl'];
+    final userId = raw['userId'];
+    final token = raw['token'];
+    if (name is! String ||
+        baseUrl is! String ||
+        userId is! String ||
+        token is! String) {
+      return null;
+    }
+    return JellyfinServer(
+      name: name,
+      baseUrl: baseUrl,
+      userId: userId,
+      token: token,
+      deviceId: raw['deviceId'] is String ? raw['deviceId'] as String : 'praxino-windows',
+      isEmby: raw['isEmby'] == true,
+    );
+  }
+}
+
 class JellyfinItem {
   const JellyfinItem({
     required this.id,

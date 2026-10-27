@@ -9,6 +9,7 @@ import '../enhance/offline/offline_job.dart';
 import '../enhance/vapoursynth_runtime.dart';
 import '../library/watch_history.dart';
 import '../sources/extra_source.dart';
+import '../sources/jellyfin/jellyfin_client.dart';
 import '../sources/subscription.dart';
 import '../sources/webdav/webdav_server.dart';
 import '../storage/app_database.dart';
@@ -43,6 +44,7 @@ class SettingsStore {
   static const _subscriptionsKey = 'subscriptions.v1';
   static const _extraSourcesKey = 'extra_sources.v1';
   static const _webdavServersKey = 'webdav.servers.v1';
+  static const _jellyfinServersKey = 'jellyfin.servers.v1';
   static const _dandanAppIdKey = 'danmaku.appId.v1';
   static const _dandanSecretKey = 'danmaku.appSecret.v1';
   static const _openApiKeyKey = 'subtitle.openApiKey.v1';
@@ -242,6 +244,27 @@ class SettingsStore {
   Future<void> saveWebDavServers(List<WebDavServer> servers) =>
       _prefs.setString(
         _webdavServersKey,
+        jsonEncode(servers.map((server) => server.toJson()).toList()),
+      );
+
+  List<JellyfinServer> get jellyfinServers {
+    final raw = _prefs.getString(_jellyfinServersKey);
+    if (raw == null) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .map(JellyfinServer.tryFromJson)
+          .whereType<JellyfinServer>()
+          .toList();
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  Future<void> saveJellyfinServers(List<JellyfinServer> servers) =>
+      _prefs.setString(
+        _jellyfinServersKey,
         jsonEncode(servers.map((server) => server.toJson()).toList()),
       );
 

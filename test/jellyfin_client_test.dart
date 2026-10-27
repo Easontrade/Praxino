@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:praxino/core/settings/settings_store.dart';
 import 'package:praxino/core/sources/jellyfin/jellyfin_adapter.dart';
 import 'package:praxino/core/sources/jellyfin/jellyfin_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 http.Response _json(Object body, {int status = 200}) =>
     http.Response.bytes(utf8.encode(jsonEncode(body)), status);
@@ -175,5 +177,20 @@ void main() {
     );
     api.close();
     expired.close();
+  });
+
+  test('server settings round-trip', () async {
+    SharedPreferences.setMockInitialValues({});
+    final settings = await SettingsStore.load();
+    const server = JellyfinServer(
+      name: 'Home',
+      baseUrl: 'https://example.test',
+      userId: 'u',
+      token: 't',
+      deviceId: 'd',
+    );
+    await settings.saveJellyfinServers([server]);
+    expect(settings.jellyfinServers.single.name, 'Home');
+    expect(settings.jellyfinServers.single.client().userId, 'u');
   });
 }

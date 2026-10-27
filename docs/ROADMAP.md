@@ -272,7 +272,10 @@
   实现 `ac=list`、`ac=detail`，解析 `vod_play_url` 的 `$` / `#` / `$$$` 分隔规则。
 - **验收**：fixture 覆盖分隔规则、空字段、多条线路；遇到 `type: 3` 明确拒绝并说明原因。
 
-### M3-7 WebDAV / OpenList 源 ⏳
+### M3-7 WebDAV / OpenList 源 🟡
+
+> 🟡 部分完成：PROPFIND 客户端、目录浏览、Basic 认证、同目录视频播放列表、服务器管理已完成并有 fixture；未用真实 OpenList 验证，同目录字幕自动挂载和服务器级续播 key 未接。
+
 - **目标**：浏览并串流播放用户自己网盘里的视频（夸克、百度、阿里云盘等经 OpenList/Alist 挂成 WebDAV，
   或任意 WebDAV 服务）。优先级高于继续增加站点类源。
 - **文件**：`lib/core/sources/webdav/webdav_client.dart`、`webdav_adapter.dart`（新建）、

@@ -13,6 +13,7 @@ import '../core/subtitles/opensubtitles_provider.dart';
 import '../core/update/update_checker.dart';
 import 'key_chord_ui.dart';
 import 'offline_tasks_page.dart';
+import 'webdav_servers_page.dart';
 
 /// App settings. Today this is the keybinding editor; paths and credentials
 /// will live here as the related cards land.
@@ -568,6 +569,18 @@ class _SettingsPageState extends State<SettingsPage> {
                       : '已登录',
             ),
             onTap: _openSubtitles,
+          ),
+          ListTile(
+            leading: const Icon(Icons.cloud_outlined),
+            title: const Text('WebDAV / OpenList'),
+            subtitle: Text(
+              widget.settings.webdavServers.isEmpty
+                  ? '未配置服务器'
+                  : '已配置 ${widget.settings.webdavServers.length} 个服务器',
+            ),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => WebDavServersPage(settings: widget.settings),
+            )),
           ),
           ListTile(
             leading: const Icon(Icons.movie_filter_outlined),

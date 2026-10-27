@@ -11,6 +11,7 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(home: SettingsPage(settings: store)));
 
+    await tester.scrollUntilVisible(find.text('播放器快捷键'), 300);
     expect(find.text('播放器快捷键'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('超分辨率：关闭'), 300);
     expect(find.text('超分辨率：关闭'), findsOneWidget);

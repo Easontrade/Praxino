@@ -10,6 +10,7 @@ import '../enhance/vapoursynth_runtime.dart';
 import '../library/watch_history.dart';
 import '../sources/extra_source.dart';
 import '../sources/subscription.dart';
+import '../sources/webdav/webdav_server.dart';
 import '../storage/app_database.dart';
 import 'keybindings.dart';
 
@@ -41,6 +42,7 @@ class SettingsStore {
   static const _keysKey = 'keybindings.v1';
   static const _subscriptionsKey = 'subscriptions.v1';
   static const _extraSourcesKey = 'extra_sources.v1';
+  static const _webdavServersKey = 'webdav.servers.v1';
   static const _dandanAppIdKey = 'danmaku.appId.v1';
   static const _dandanSecretKey = 'danmaku.appSecret.v1';
   static const _openApiKeyKey = 'subtitle.openApiKey.v1';
@@ -220,6 +222,27 @@ class SettingsStore {
   Future<void> saveExtraSources(List<ExtraSource> sources) => _prefs.setString(
         _extraSourcesKey,
         jsonEncode(sources.map((source) => source.toJson()).toList()),
+      );
+
+  List<WebDavServer> get webdavServers {
+    final raw = _prefs.getString(_webdavServersKey);
+    if (raw == null) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .map(WebDavServer.tryFromJson)
+          .whereType<WebDavServer>()
+          .toList();
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  Future<void> saveWebDavServers(List<WebDavServer> servers) =>
+      _prefs.setString(
+        _webdavServersKey,
+        jsonEncode(servers.map((server) => server.toJson()).toList()),
       );
 
   List<OfflineJob> get offlineJobs {

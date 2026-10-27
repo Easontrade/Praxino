@@ -7,10 +7,10 @@
 | 检查 | 结果 |
 | --- | --- |
 | `flutter analyze` | 0 issue |
-| `flutter test` | 203 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 209 全通过 |
+| `flutter test` | 203 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 217 全通过 |
 | `flutter build windows --debug` | 成功 |
 | `flutter build windows --release` | 成功 |
-| GitHub Actions CI | 成功：build release 后带 QuickJS DLL 跑 209 个测试，无跳过 |
+| GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 217 个测试全通过 |
 | Inno Setup 安装包编译 | 成功；最终 SHA256 `ed5ad5c4e128807d9f069a838e952e42e2ccf1baf5a321716c8b63c83e8e705d` |
 | 安装包 ANGLE Vulkan 排除 | 已验证：安装目录无 `vulkan-1.dll` / `vk_swiftshader.dll` |
 
@@ -25,6 +25,7 @@
 | Kazumi 规则库 | 已验证 | 本地种子 16 条规则全部解析为 adapter |
 | TVBox 本地配置 | 已验证 | 101 个去重地址导入成功 13 个；本地共 84 个可用站点 |
 | WebDAV / OpenList | 已验证（Mock） | PROPFIND、中文/空格路径、401、同目录播放列表、Basic 认证头 |
+| WebDAV 续播 / 下一集 / 同目录字幕 | 已验证（Mock） | 续播 key 去掉凭据和查询串（单测）；同目录视频按自然顺序进播放列表，下一集走 mpv 原生列表；字幕按 `<视频>.<语言>.ass` 匹配并中文优先；真实 OpenList 未验证 |
 | 单源搜索 | 已验证 | 规则搜索返回结果（仅元数据，不播放） |
 | Stremio adapter | 已验证（Mock） | manifest / catalog / meta / stream 解析 |
 | QuickJS 沙箱 | 已验证 | 纯 JS、fetch、超时、内存上限、无文件/进程全局 |

@@ -54,8 +54,19 @@ void main() {
     client.close();
   });
 
-  test('401 becomes WebDavAuthException', () async {
+  test('authHeaders only carries the credential, for mpv media requests', () {
     final client = WebDavClient(
+      baseUrl: 'https://example.test/dav',
+      username: 'user',
+      password: 'secret',
+    );
+    expect(client.authHeaders.keys, ['Authorization']);
+    expect(client.authHeaders['Authorization'], startsWith('Basic '));
+    expect(client.headers['Depth'], '1');
+    client.close();
+  });
+
+  test('401 becomes WebDavAuthException', () async {    final client = WebDavClient(
       baseUrl: 'https://example.test/dav',
       username: 'u',
       password: 'p',

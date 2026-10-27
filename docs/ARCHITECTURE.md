@@ -249,6 +249,12 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 和 Jellyfin / Emby 媒体服务器都实现为 `SourceAdapter`。它们的片源通常是原盘或高码率文件，
 能真正发挥超分和补帧的价值；认证信息只放在请求头和本机设置里，不拼进 URL、不写日志。
 
+WebDAV 的"下一集"和本地文件走同一条路：把同目录视频按自然顺序交给 `PlayerPage.sources`，
+mpv 的原生下一集/自动续集就能用。续播复用 `WatchHistory`，但 key 由 `webDavHistoryKey` 生成
+（去掉 URL 里的 userinfo、query 和末尾斜杠，再加 `webdav:` 前缀），因此同一台服务器上的同一路径
+在换 token、带不带查询参数时都能命中，也不会把密码写进历史记录。远程 URL 默认不记历史，
+只有打开方显式传入 `historyKeyFor` 才记录；Jellyfin 的续播用服务器进度，不走这条。
+
 ---
 
 ## 8. 历史资产（不在仓库里）

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 import '../core/settings/settings_store.dart';
-import '../core/sources/source_adapter.dart';
 import '../core/sources/webdav/webdav_client.dart';
+import '../core/sources/webdav/webdav_playlist.dart';
 import '../core/sources/webdav/webdav_server.dart';
 import 'player_page.dart';
 
@@ -50,11 +49,9 @@ class _WebDavBrowserPageState extends State<WebDavBrowserPage> {
     });
     try {
       final entries = await _client.list(path);
-      entries.sort((a, b) {
-        if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      });
-      if (mounted) setState(() => _entries = entries);
+      if (mounted) {
+        setState(() => _entries = sortedWebDavEntries(entries));
+      }
     } on Exception catch (error) {
       if (mounted) setState(() => _error = '$error');
     } finally {
@@ -73,27 +70,30 @@ class _WebDavBrowserPageState extends State<WebDavBrowserPage> {
       ));
       return;
     }
-    final base = p.basenameWithoutExtension(entry.name);
-    final subtitles = <String, String>{};
-    for (final item in _entries) {
-      if (item.isDirectory) continue;
-      final ext = p.extension(item.name).toLowerCase();
-      if (ext != '.srt' && ext != '.ass' && ext != '.vtt') continue;
-      if (p.basenameWithoutExtension(item.name) != base) continue;
-      subtitles[item.name] = _client.uriFor(item.path).toString();
+    if (!isWebDavVideo(entry)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('这不是视频文件')),
+      );
+      return;
     }
-    final headers = _client.headers['Authorization'];
+    final videos = webDavVideoEntries(_entries);
+    final urls = [
+      for (final video in videos) _client.uriFor(video.path).toString(),
+    ];
+    final index = videos.indexWhere((video) => video.path == entry.path);
+    final subtitles = webDavSubtitleUrls(
+      _entries,
+      uriFor: (path) => _client.uriFor(path).toString(),
+    );
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PlayerPage(
         settings: widget.settings,
-        streams: [
-          PlayableStream(
-            _client.uriFor(entry.path).toString(),
-            headers: headers == null ? const {} : {'Authorization': headers},
-            subtitleLanguages: subtitles.keys.toList(),
-            subtitleUrls: subtitles,
-          )
-        ],
+        sources:
+            urls.isEmpty ? [_client.uriFor(entry.path).toString()] : urls,
+        index: index < 0 ? 0 : index,
+        headers: _client.authHeaders,
+        subtitleResolver: (url) => subtitles[url] ?? const {},
+        historyKeyFor: (url) => webDavHistoryKey(Uri.parse(url)),
       ),
     ));
   }

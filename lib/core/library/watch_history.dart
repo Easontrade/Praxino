@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-/// One saved playback position for a local file.
+/// One saved playback position. [path] is a local file path or a remote
+/// provider's stable key (see `webDavHistoryKey`).
 class WatchPoint {
   const WatchPoint({
     required this.path,

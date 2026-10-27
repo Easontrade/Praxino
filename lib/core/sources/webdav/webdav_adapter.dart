@@ -49,7 +49,7 @@ class WebDavAdapter implements SourceAdapter {
     if (!isVideoName(episode.url)) return null;
     return PlayableStream(
       client.uriFor(episode.url).toString(),
-      headers: client.headers,
+      headers: client.authHeaders,
     );
   }
 

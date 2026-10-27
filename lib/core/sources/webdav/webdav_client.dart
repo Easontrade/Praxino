@@ -46,11 +46,18 @@ class WebDavClient {
   final String password;
   final http.Client _client;
 
+  /// Headers for PROPFIND requests.
   Map<String, String> get headers => {
-        'Authorization':
-            'Basic ${base64Encode(utf8.encode('$username:$password'))}',
+        ...authHeaders,
         'Depth': '1',
         'Content-Type': 'application/xml; charset=utf-8',
+      };
+
+  /// Only the credential header. Media and subtitle GETs must not carry
+  /// `Depth`/`Content-Type`, and these headers are handed to mpv.
+  Map<String, String> get authHeaders => {
+        'Authorization':
+            'Basic ${base64Encode(utf8.encode('$username:$password'))}',
       };
 
   Uri uriFor(String path) {

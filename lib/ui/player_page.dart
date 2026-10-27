@@ -41,6 +41,8 @@ class PlayerPage extends StatefulWidget {
     this.prefetchNext,
     this.onProgress,
     this.startPosition = Duration.zero,
+    this.historyKeyFor,
+    this.subtitleResolver,
   });
 
   final List<String> sources;
@@ -64,6 +66,14 @@ class PlayerPage extends StatefulWidget {
 
   /// Resume position for remote streams opened directly.
   final Duration startPosition;
+
+  /// Turns a media source into a [WatchHistory] key. Local files already use
+  /// their path; remote providers pass this to opt into resume points.
+  final String Function(String source)? historyKeyFor;
+
+  /// Sibling subtitles for a remote media URL, ordered by preference. Called
+  /// after each playlist change, so subtitles follow "next episode" too.
+  final Map<String, String> Function(String source)? subtitleResolver;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -98,6 +108,7 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _exhausted = false;
   String? _secondarySubtitle;
   bool _playlistOpen = false;
+  String? _currentMediaUri;
 
   @override
   void initState() {
@@ -105,20 +116,7 @@ class _PlayerPageState extends State<PlayerPage> {
     _history = widget.settings.watchHistory;
     _keys = widget.settings.keybindings;
     _danmakuService = DanmakuService(settings: widget.settings);
-    _player.player.stream.playlist.listen((playlist) {
-      if (!mounted || playlist.medias.isEmpty) return;
-      final uri = playlist.medias[playlist.index].uri;
-      _secondarySubtitle = null;
-      setState(() => _title = _displayName(uri));
-      if (uri.contains('://')) {
-        _danmakuRequest++;
-        _danmakuItems.value = const [];
-      } else {
-        widget.settings.addRecent(uri);
-        unawaited(_loadDanmaku(uri));
-      }
-      unawaited(_player.setSecondarySubtitle(null));
-    });
+    _player.player.stream.playlist.listen(_onPlaylistChanged);
     _historyTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _savePosition());
     _advisorTimer =
@@ -137,6 +135,61 @@ class _PlayerPageState extends State<PlayerPage> {
           Timer.periodic(const Duration(seconds: 1), (_) => _watchdogTick());
     }
     _start();
+  }
+
+  /// Reacts to the first media and to every "next episode" switch.
+  void _onPlaylistChanged(Playlist playlist) {
+    if (!mounted || playlist.medias.isEmpty) return;
+    final uri = playlist.medias[playlist.index].uri;
+    if (uri == _currentMediaUri) return;
+    _currentMediaUri = uri;
+    _secondarySubtitle = null;
+    setState(() => _title = _displayName(uri));
+    if (uri.contains('://')) {
+      _danmakuRequest++;
+      _danmakuItems.value = const [];
+    } else {
+      widget.settings.addRecent(uri);
+      unawaited(_loadDanmaku(uri));
+    }
+    unawaited(_player.setSecondarySubtitle(null));
+    unawaited(_prepareMedia(uri));
+  }
+
+  /// Attaches sibling subtitles and resumes playback once [uri] is loaded.
+  ///
+  /// The duration stream does not replay events, so poll the state instead of
+  /// waiting for a signal that may already have fired during open.
+  Future<void> _prepareMedia(String uri) async {
+    final key = _historyKeyFor(uri);
+    final resolver = widget.subtitleResolver;
+    if (key == null && resolver == null) return;
+    final duration = await _waitForDuration();
+    if (!mounted || _currentSource != uri || duration <= Duration.zero) return;
+    if (resolver != null) {
+      final subtitles = resolver(uri);
+      if (subtitles.isNotEmpty) {
+        try {
+          await _player.addExternalSubtitle(subtitles.values.first);
+        } catch (_) {
+          // A missing subtitle must not interrupt playback.
+        }
+      }
+      if (!mounted || _currentSource != uri) return;
+    }
+    if (key == null) return;
+    final point = _history.find(key);
+    if (point == null || !point.shouldResume) return;
+    await _player.player.seek(point.position);
+    if (!mounted || _currentSource != uri) return;
+    _toastResume(point.position);
+  }
+
+  /// [WatchHistory] key for a source: local files use their path, remote
+  /// sources only opt in through [PlayerPage.historyKeyFor].
+  String? _historyKeyFor(String source) {
+    if (!source.contains('://')) return source;
+    return widget.historyKeyFor?.call(source);
   }
 
   /// File name for local paths, last path segment for URLs.
@@ -186,7 +239,6 @@ class _PlayerPageState extends State<PlayerPage> {
         index: widget.index,
       ),
     );
-    await _restorePosition();
   }
 
   Future<void> _openStream(PlayableStream stream) async {
@@ -285,20 +337,6 @@ class _PlayerPageState extends State<PlayerPage> {
     return playlist.medias[index].uri;
   }
 
-  Future<void> _restorePosition() async {
-    final source = _currentSource;
-    if (source == null || source.contains('://')) return;
-    final point = _history.find(source);
-    if (point == null || !point.shouldResume) return;
-    // The duration stream is broadcast without replay, so poll the state
-    // instead of waiting for an event that may already have fired during open.
-    final duration = await _waitForDuration();
-    if (!mounted || duration <= Duration.zero) return;
-    await _player.player.seek(point.position);
-    if (!mounted) return;
-    _toastResume(point.position);
-  }
-
   Future<Duration> _waitForDuration() async {
     for (var attempt = 0; attempt < 50; attempt++) {
       if (!mounted) return Duration.zero;
@@ -314,14 +352,15 @@ class _PlayerPageState extends State<PlayerPage> {
     if (source == null) return;
     final position = _player.player.state.position;
     if (position > Duration.zero) widget.onProgress?.call(position);
-    if (source.contains('://')) return;
+    final key = _historyKeyFor(source);
+    if (key == null) return;
     final duration = _player.player.state.duration;
     if (duration <= Duration.zero || position <= Duration.zero) return;
     if (duration - position <= WatchPoint.keepBeforeEnd) {
-      _history.remove(source);
+      _history.remove(key);
     } else {
       _history.record(WatchPoint(
-        path: source,
+        path: key,
         position: position,
         duration: duration,
         updatedAt: DateTime.now(),

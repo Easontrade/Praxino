@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/sources/subscription.dart';
 import '../core/settings/settings_store.dart';
+import 'dialog_scope.dart';
 
 /// Manages the user's source subscriptions. The repo ships none; everything
 /// here starts from an empty list and a URL the user pastes.
@@ -33,7 +34,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final controller = TextEditingController();
     final text = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [controller],
+        child: AlertDialog(
         title: const Text('粘贴规则 JSON'),
         content: SizedBox(
           width: 560,
@@ -58,8 +61,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           ),
         ],
       ),
-    );
-    controller.dispose();
+    ));
     if (text == null || text.trim().isEmpty || !mounted) return;
 
     try {
@@ -75,7 +77,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final controller = TextEditingController();
     final url = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [controller],
+        child: AlertDialog(
         title: const Text('添加订阅'),
         content: TextField(
           controller: controller,
@@ -97,8 +101,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           ),
         ],
       ),
-    );
-    controller.dispose();
+    ));
     final trimmed = url?.trim() ?? '';
     if (trimmed.isEmpty || !mounted) return;
 

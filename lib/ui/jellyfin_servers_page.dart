@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/settings/settings_store.dart';
 import '../core/sources/jellyfin/jellyfin_client.dart';
+import 'dialog_scope.dart';
 import 'jellyfin_library_page.dart';
 
 class JellyfinServersPage extends StatefulWidget {
@@ -27,7 +28,9 @@ class _JellyfinServersPageState extends State<JellyfinServersPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (context, setDialogState) => DialogScope(
+          controllers: [name, url, user, pass],
+          child: AlertDialog(
           title: const Text('添加 Jellyfin / Emby'),
           content: SizedBox(
             width: 620,
@@ -75,6 +78,7 @@ class _JellyfinServersPageState extends State<JellyfinServersPage> {
             ),
           ],
         ),
+        ),
       ),
     );
     if (ok == true && url.text.trim().isNotEmpty) {
@@ -112,10 +116,6 @@ class _JellyfinServersPageState extends State<JellyfinServersPage> {
         }
       }
     }
-    name.dispose();
-    url.dispose();
-    user.dispose();
-    pass.dispose();
   }
 
   @override

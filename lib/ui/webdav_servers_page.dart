@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/settings/settings_store.dart';
 import '../core/sources/webdav/webdav_server.dart';
+import 'dialog_scope.dart';
 import 'webdav_browser_page.dart';
 
 class WebDavServersPage extends StatefulWidget {
@@ -25,7 +26,9 @@ class _WebDavServersPageState extends State<WebDavServersPage> {
     final pass = TextEditingController();
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [name, url, user, pass],
+        child: AlertDialog(
         title: const Text('添加 WebDAV / OpenList'),
         content: SizedBox(
           width: 620,
@@ -66,7 +69,7 @@ class _WebDavServersPageState extends State<WebDavServersPage> {
           ),
         ],
       ),
-    );
+    ));
     if (saved == true && url.text.trim().isNotEmpty) {
       setState(() {
         _items = [
@@ -82,10 +85,6 @@ class _WebDavServersPageState extends State<WebDavServersPage> {
       });
       await _save();
     }
-    name.dispose();
-    url.dispose();
-    user.dispose();
-    pass.dispose();
   }
 
   Future<void> _delete(WebDavServer server) async {

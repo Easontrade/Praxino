@@ -1,16 +1,20 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import '../core/enhance/enhance_pack.dart';
 import '../core/enhance/enhance_pack_activation.dart';
+import '../core/enhance/enhance_pack_bundle.dart';
 import '../core/enhance/enhance_pack_paths.dart';
 import '../core/settings/keybindings.dart';
 import '../core/settings/settings_store.dart';
 import '../core/subtitles/opensubtitles_provider.dart';
 import '../core/update/update_checker.dart';
+import 'dialog_scope.dart';
 import 'jellyfin_servers_page.dart';
 import 'key_chord_ui.dart';
 import 'offline_tasks_page.dart';
@@ -80,7 +84,9 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [apiKey, username, password],
+        child: AlertDialog(
         title: const Text('OpenSubtitles'),
         content: SizedBox(
           width: 620,
@@ -116,10 +122,9 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-    );
+    ));
     if (saved == true) {
-      final provider = OpenSubtitlesProvider(
-        apiKey: apiKey.text.trim(),
+      final provider = OpenSubtitlesProvider(        apiKey: apiKey.text.trim(),
         appVersion:
             const String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0'),
       );
@@ -146,9 +151,6 @@ class _SettingsPageState extends State<SettingsPage> {
         provider.close();
       }
     }
-    apiKey.dispose();
-    username.dispose();
-    password.dispose();
   }
 
   Future<void> _dandanplayCredentials() async {
@@ -160,7 +162,9 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [appId, secret],
+        child: AlertDialog(
         title: const Text('弹弹play 凭证'),
         content: SizedBox(
           width: 560,
@@ -195,7 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-    );
+    ));
     if (saved == true) {
       await widget.settings.setDandanplayCredentials(
         appId.text.trim(),
@@ -203,8 +207,6 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       if (mounted) setState(() {});
     }
-    appId.dispose();
-    secret.dispose();
   }
 
   Future<void> _vpyScript() async {
@@ -213,7 +215,9 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [path],
+        child: AlertDialog(
         title: const Text('补帧脚本'),
         content: SizedBox(
           width: 620,
@@ -236,12 +240,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-    );
+    ));
     if (saved == true) {
       await widget.settings.setInterpolationScriptPath(path.text);
       if (mounted) setState(() {});
     }
-    path.dispose();
   }
 
   Future<void> _enhancePack() async {
@@ -254,7 +257,9 @@ class _SettingsPageState extends State<SettingsPage> {
         TextEditingController(text: widget.settings.vapoursynthRuntime.siteDir);
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [manifest, python, site],
+        child: AlertDialog(
         title: const Text('增强包 / 补帧'),
         content: SizedBox(
           width: 620,
@@ -287,9 +292,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 minLines: 5,
                 maxLines: 8,
                 decoration: const InputDecoration(
-                  labelText: 'manifest JSON',
-                  hintText:
-                      '{"version":"1","url":"https://…/libmpv-2.dll","sha256":"…"}',
+                  labelText: 'manifest JSON 或 URL',
+                  hintText: '{"version":"1","files":[…]} 或 https://…/manifest.json',
                 ),
               ),
             ],
@@ -313,25 +317,16 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, manifest.text.trim()),
-            child: const Text('保存 / 下载并启用'),
+            child: const Text('安装并启用'),
           ),
         ],
       ),
+      ),
     );
-    if (result == null || !mounted) {
-      manifest.dispose();
-      python.dispose();
-      site.dispose();
-      return;
-    }
+    if (result == null || !mounted) return;
     await widget.settings
         .setVapoursynthRuntime(pythonDir: python.text, siteDir: site.text);
-    python.dispose();
-    site.dispose();
-    if (!mounted) {
-      manifest.dispose();
-      return;
-    }
+    if (!mounted) return;
 
     try {
       switch (result) {
@@ -348,21 +343,139 @@ class _SettingsPageState extends State<SettingsPage> {
         case '':
           _toast('已保存 VapourSynth 路径，重启后生效');
         default:
-          final parsed = EnhancePackManifest.tryFromJson(jsonDecode(result));
-          if (parsed == null) throw const EnhancePackException('manifest 格式不对');
-          final downloader = EnhancePackDownloader(root: EnhancePackPaths.root());
-          try {
-            await downloader.download(parsed);
-          } finally {
-            downloader.close();
-          }
-          _activatePack(activation);
+          await _installManifest(result);
       }
     } on Exception catch (error) {
       if (mounted) _toast('$error');
     } finally {
-      manifest.dispose();
       if (mounted) setState(() {});
+    }
+  }
+
+  /// Accepts a manifest URL or inline JSON, then installs either the old
+  /// single-file manifest or a multi-file bundle.
+  Future<void> _installManifest(String text) async {
+    final client = http.Client();
+    try {
+      final trimmed = text.trim();
+      final Object decoded = trimmed.startsWith('{') || trimmed.startsWith('[')
+          ? jsonDecode(trimmed)
+          : await EnhancePackInstaller(
+              root: EnhancePackPaths.root(),
+              client: client,
+            ).fetchManifest(trimmed);
+      final bundle = EnhancePackBundle.tryFromJson(decoded);
+      if (bundle != null) {
+        if (!await _confirmBundle(bundle)) return;
+        await _installBundle(bundle);
+        return;
+      }
+      final manifest = EnhancePackManifest.tryFromJson(decoded);
+      if (manifest == null) {
+        throw const EnhancePackException('manifest 格式不对');
+      }
+      await EnhancePackDownloader(
+        root: EnhancePackPaths.root(),
+        client: client,
+      ).download(manifest);
+      _activatePack(EnhancePackActivation());
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<bool> _confirmBundle(EnhancePackBundle bundle) async {
+    final licenses = StringBuffer();
+    for (final file in bundle.files) {
+      licenses.writeln('• ${file.name} — ${file.license}');
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('安装 ${bundle.name}？'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('版本：${bundle.version}\n'
+                    '文件：${bundle.files.length} 个'),
+                const SizedBox(height: 12),
+                Text(licenses.toString()),
+                const SizedBox(height: 12),
+                const Text(
+                  '只从你信任的地址下载。各组件许可证由 manifest 声明；'
+                  '确认允许在这些条款下再分发后再继续。',
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('同意并安装'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _installBundle(EnhancePackBundle bundle) async {
+    final status = ValueNotifier<String>('准备下载…');
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(bundle.name),
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: status,
+                builder: (context, value, _) => Text(value),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+    final installer = EnhancePackInstaller(
+      root: EnhancePackPaths.root(),
+      onProgress: (message) => status.value = message,
+    );
+    try {
+      final result = await installer.install(bundle);
+      if (result.hasVapourSynth && mounted) {
+        await widget.settings.setVapoursynthRuntime(
+          pythonDir: result.pythonDir!,
+          siteDir: result.siteDir!,
+        );
+      }
+      if (result.libmpvPath != null) {
+        _activatePack(EnhancePackActivation());
+      } else if (mounted) {
+        _toast('增强包已安装；manifest 没有 libmpv，未启用补帧');
+      }
+      if (mounted && result.hasVapourSynth && result.libmpvPath != null) {
+        _toast('增强包已安装，Python / VapourSynth 路径已自动填写');
+      } else if (mounted &&
+          result.libmpvPath != null &&
+          !result.hasVapourSynth) {
+        _toast('libmpv 已启用，但没找到 Python/VapourSynth，请手动填写路径');
+      }
+    } finally {
+      installer.close();
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
     }
   }
 
@@ -395,7 +508,9 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [ffmpeg, esrgan, rife],
+        child: AlertDialog(
         title: const Text('离线增强工具路径'),
         content: SizedBox(
           width: 620,
@@ -435,7 +550,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-    );
+    ));
     if (saved == true) {
       await widget.settings.setOfflineToolPaths(
         ffmpeg: ffmpeg.text,
@@ -443,13 +558,11 @@ class _SettingsPageState extends State<SettingsPage> {
         rife: rife.text,
       );
     }
-    ffmpeg.dispose();
-    esrgan.dispose();
-    rife.dispose();
     if (mounted) setState(() {});
   }
 
-  Future<void> _checkUpdates() async {    final checker = UpdateChecker(
+  Future<void> _checkUpdates() async {
+    final checker = UpdateChecker(
       currentVersion:
           const String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0'),
       skippedVersion: widget.settings.skippedUpdateVersion,

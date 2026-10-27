@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import '../core/library/local_files.dart';
 import '../core/platform/single_instance.dart';
 import '../core/settings/settings_store.dart';
+import 'dialog_scope.dart';
 import 'online_page.dart';
 import 'player_page.dart';
 import 'settings_page.dart';
@@ -87,7 +88,9 @@ class _HomePageState extends State<HomePage> {
     final controller = TextEditingController();
     final url = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => DialogScope(
+        controllers: [controller],
+        child: AlertDialog(
         title: const Text('打开链接'),
         content: SizedBox(
           width: 480,
@@ -111,8 +114,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-    );
-    controller.dispose();
+    ));
     if (url != null && url.trim().isNotEmpty) _play([url.trim()]);
   }
 

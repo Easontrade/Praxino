@@ -82,6 +82,52 @@ void main() {
     await _disposePlayer(tester);
   });
 
+  testWidgets('enhancement dialog survives the controls auto-hiding',
+      (tester) async {
+    final settings = await _openPlayer(tester);
+
+    // Reveal the auto-hiding control bar, then open the enhancement dialog.
+    final video = tester.getCenter(find.byType(PlayerPage));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: video);
+    await mouse.moveTo(video);
+    await tester.pump(const Duration(milliseconds: 300));
+    await _pumpUntil(
+      tester,
+      () => find.byTooltip('画质增强 (Ctrl+0~3)').evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 10),
+      description: 'player controls to appear',
+    );
+    await tester.tap(find.byTooltip('画质增强 (Ctrl+0~3)'));
+    await _pumpUntil(
+      tester,
+      () => find.text('画质增强').evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 5),
+      description: 'enhancement dialog to open',
+    );
+
+    // Move onto the dialog (outside the video's hover region) and wait longer
+    // than the control bar's 3-second timeout: the dialog must stay open.
+    final dialog = tester.getCenter(find.byType(AlertDialog));
+    await mouse.moveTo(dialog);
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.text('画质增强'), findsOneWidget);
+
+    // A selection still applies while the controls are hidden.
+    await tester.tap(find.text('Anime4K 均衡'));
+    await _pumpUntil(
+      tester,
+      () => settings.enhance.upscale == UpscalePreset.anime4kBalanced,
+      timeout: const Duration(seconds: 15),
+      description: 'preset to apply from the open dialog',
+    );
+    expect(find.text('画质增强'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '关闭'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await _disposePlayer(tester);
+  });
+
   testWidgets('saves dandanplay credentials from the settings page',
       (tester) async {
     final settings = await SettingsStore.load();

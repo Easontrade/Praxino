@@ -35,13 +35,16 @@
 | 隐藏桌面启动 | 已验证 | 独立桌面启动，窗口创建成功，不占用可见桌面 |
 | 应用内 mvtools 补帧 | 已验证 | 增强包（shinchiro 2026 构建，client API 2.6）替换应用目录 libmpv；VapourSynth 路径来自设置；1080p 23.976 → 59.94 fps，`vf=vapoursynth` 生效，0 掉帧（`PRAXINO_DIAG_LOG` 每 2 秒采样，持续 12 秒以上） |
 | 运行中启用增强包 | 已验证 | 应用运行时给已加载的 `libmpv-2.dll` 改名并放入新 DLL 成功；重启后加载新 DLL |
+| 应用内 RIFE 补帧 | 已验证 | 内置 `rife_ncnn.vpy`（RIFE-ncnn-Vulkan + RIFE v4.6，RTX 5080）：1080p 23.976 → 47.952 fps，启动时掉 3 帧后 22 秒内不再增加 |
+| RIFE 吞吐基准 | 已验证 | 独立 mpv `--untimed` 处理 10 秒 1080p：2 倍约 60fps；固定 60fps 约 37～41fps（GPU 100%），因此模板用 2 倍 |
+| 去掉 ANGLE 附带的 Vulkan 文件后的普通播放 | 已验证 | 无增强包、Anime4K 高质量：1080p 23.976 fps 正常播放；mvtools 回归 59.94 fps |
 
 ## 未验证 / 外部条件
 
 | 项目 | 原因 |
 | --- | --- |
-| 应用内 RIFE 补帧 | 还没有 RIFE 版 `.vpy` 模板（需要 vs-rife / vs-mlrt 插件和模型） |
-| 补帧肉眼观感 | 只验证了帧率和掉帧数，画面需要用户亲自看 |
+| 补帧肉眼观感 | 只验证了帧率和掉帧数，mvtools / RIFE 的画面需要用户亲自看 |
+| 其它显卡上的 RIFE 实时性 | 只在 RTX 5080 上测过；较弱的显卡可能需要降到 mvtools |
 | 真实 Stremio addon / 脚本源 | 没有可公开分发的测试 addon；仓库不内置真实源 |
 | 真实在线字幕账号 | 没有 ASSRT/OpenSubtitles 凭证 |
 | GitHub Release 自动发布 | 需要推送 tag；本地只验证了安装包与校验和 |

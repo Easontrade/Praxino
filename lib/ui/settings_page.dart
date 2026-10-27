@@ -218,8 +218,8 @@ class _SettingsPageState extends State<SettingsPage> {
           child: TextField(
             controller: path,
             decoration: const InputDecoration(
-              labelText: '.vpy 路径',
-              hintText: r'C:\Tools\vs\rife.vpy',
+              labelText: '自定义 .vpy 路径（留空使用内置模板）',
+              hintText: r'C:\Tools\vs\my_interp.vpy',
             ),
           ),
         ),
@@ -573,7 +573,7 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: const Icon(Icons.movie_filter_outlined),
             title: const Text('补帧脚本'),
             subtitle: Text(
-              widget.settings.interpolationScriptPath ?? '未配置 .vpy',
+              widget.settings.interpolationScriptPath ?? '使用内置模板（mvtools / RIFE）',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

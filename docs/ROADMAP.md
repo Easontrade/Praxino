@@ -142,8 +142,9 @@
 
 ### M2-3 增强包与补帧（RIFE / mvtools） 🟡
 
-> 🟡 部分完成：**应用内 mvtools 补帧已打通**（1080p 23.976 → 59.94 fps，0 掉帧，隐藏桌面实测）。
-> 剩余：RIFE 模板与实测、掉帧提示降档（第 5 步）、真人肉眼观感。
+> 🟡 部分完成：**应用内 mvtools 和 RIFE 补帧都已打通**（隐藏桌面实测，1080p）：
+> mvtools 23.976 → 59.94 fps；RIFE 23.976 → 47.952 fps（2 倍），启动后不再掉帧。
+> 剩余：掉帧提示降档（第 5 步）、真人肉眼观感、增强包一键安装 RIFE 插件和模型。
 >
 > 之前的"API 2.1/2.6 不兼容"是误判：真正原因是进程里加载了**两份** libmpv（见 ARCHITECTURE §5.2）。
 > 实测：2023-07 的 shinchiro 构建（mpv 0.35.0-579，API 2.1）用旧方式同样崩溃，放进应用目录后又因为太旧、
@@ -163,10 +164,17 @@
   3. ✅ 启用 = 替换应用目录里的 `libmpv-2.dll`（`EnhancePackActivation`，重启生效）；
      **不要**用 `MediaKit.ensureInitialized(libmpv:)` 另外加载一份。VapourSynth 运行时路径在设置页填写，
      启动时由 `VapourSynthRuntime` 写入进程环境（Win32 + C 运行时两份）。
-  4. 🟡 `EnhanceSettings.interpolation`（`off / mvtools / rife`）+ `.vpy` 模板：
-     ✅ `assets/vapoursynth/mvtools_flowfps.vpy`（读 mpv 注入的 `video_in`/`container_fps`，输出约 60fps）；
-     ⏳ RIFE 版模板（vs-rife / vs-mlrt，TensorRT 或 ncnn 后端）。
-     补帧滤镜与 L1 的 `hqdn3d` 已合并进同一条 `vf` 链。
+  4. ✅ `EnhanceSettings.interpolation`（`off / mvtools / rife`）+ `.vpy` 模板，每种模式默认用内置模板，
+     设置里的自定义 `.vpy` 只作覆盖：
+     - `assets/vapoursynth/mvtools_flowfps.vpy`：读 mpv 注入的 `video_in`/`container_fps`，输出约 60fps。
+     - `assets/vapoursynth/rife_ncnn.vpy`：VapourSynth-RIFE-ncnn-Vulkan 插件 + RIFE v4.6 模型，输出 2 倍帧率。
+       选型过程：vs-mlrt 的 Windows 插件（NCNN/ORT/TRT）都还是 VapourSynth API 3，R81 已不支持；
+       vs-rife 需要数 GB 的 CUDA 版 PyTorch。RIFE-ncnn-Vulkan 是 API 4、单个 5MB DLL、任意显卡可用。
+       帧率选择：固定 60fps 需要每 5 帧推理 4 帧，RTX 5080 上 1080p 只有约 40fps（GPU 100%）；
+       2 倍只需每 2 帧推理 1 帧，约 60fps 吞吐，实时有余量。
+     - 补帧滤镜与 L1 的 `hqdn3d` 已合并进同一条 `vf` 链。
+     - 应用目录**不能**带 media_kit ANGLE 包里的开发版 `vulkan-1.dll` / `vk_swiftshader.dll`
+       （已在 `windows/CMakeLists.txt` 排除），否则 RIFE 一初始化就在 NVIDIA 驱动里崩溃，原因见 ARCHITECTURE §5.2。
   5. 显示 `frame-drop-count`，掉帧时提示降档。
 - **验收**：24fps 片源开启后，`estimated-vf-fps` 约等于显示器刷新率；关闭后能恢复；
   降噪和补帧可以同时开启且两者都生效；增强包缺失/校验失败时不影响普通播放。

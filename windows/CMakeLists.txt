@@ -85,6 +85,17 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# media_kit's ANGLE bundle ships a dev-build Vulkan loader (and SwiftShader)
+# for ANGLE's Vulkan backend; media_kit only uses D3D11. Next to the exe that
+# loader shadows the system vulkan-1.dll once Python switches the process to
+# safe DLL search, and two Vulkan loaders in one process crash the GPU driver
+# when RIFE (ncnn) starts. Leave them out so everything uses the system loader.
+list(FILTER PLUGIN_BUNDLED_LIBRARIES EXCLUDE REGEX "/(vulkan-1|vk_swiftshader)\\.dll$")
+install(CODE "
+  file(REMOVE \"${INSTALL_BUNDLE_LIB_DIR}/vulkan-1.dll\"
+              \"${INSTALL_BUNDLE_LIB_DIR}/vk_swiftshader.dll\")
+  " COMPONENT Runtime)
+
 if(PLUGIN_BUNDLED_LIBRARIES)
   install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"

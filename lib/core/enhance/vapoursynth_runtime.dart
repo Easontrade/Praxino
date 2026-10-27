@@ -36,6 +36,7 @@ class VapourSynthRuntime {
   /// `SetEnvironmentVariableW` changes once initialised.
   void applyToProcess() {
     if (!Platform.isWindows || !isConfigured) return;
+    _preloadSystemVulkan();
     final kernel32 = DynamicLibrary.open('kernel32.dll');
     final setWin32 = kernel32.lookupFunction<
         Int32 Function(Pointer<Utf16>, Pointer<Utf16>),
@@ -52,6 +53,22 @@ class VapourSynthRuntime {
       setCrt(name, value);
       malloc.free(name);
       malloc.free(value);
+    }
+  }
+
+  /// The Flutter engine ships a dev-build `vulkan-1.dll` (for ANGLE's
+  /// SwiftShader fallback) next to the executable. GPU filters such as RIFE
+  /// (ncnn) load `vulkan-1.dll` by name, which would resolve to that copy and
+  /// crash. Loading the system loader by full path first makes every later
+  /// by-name load reuse it.
+  static void _preloadSystemVulkan() {
+    final root = Platform.environment['SystemRoot'] ?? r'C:\Windows';
+    final loader = p.join(root, 'System32', 'vulkan-1.dll');
+    if (!File(loader).existsSync()) return;
+    try {
+      DynamicLibrary.open(loader);
+    } on ArgumentError {
+      // No usable system Vulkan; GPU filters will report their own error.
     }
   }
 }

@@ -40,6 +40,31 @@ void main() {
     expect(props['hwdec'], 'auto-copy');
   });
 
+  test('each mode uses its bundled template unless overridden', () {
+    expect(
+      interpolationScriptFor(InterpolationMode.off, templateDir: '/t'),
+      isNull,
+    );
+    expect(
+      interpolationScriptFor(InterpolationMode.mvtools, templateDir: '/t'),
+      endsWith('mvtools_flowfps.vpy'),
+    );
+    expect(
+      interpolationScriptFor(InterpolationMode.rife, templateDir: '/t'),
+      endsWith('rife_ncnn.vpy'),
+    );
+    expect(
+      interpolationScriptFor(InterpolationMode.rife,
+          templateDir: '/t', override: ' /mine.vpy '),
+      '/mine.vpy',
+    );
+    expect(
+      interpolationScriptFor(InterpolationMode.off,
+          templateDir: '/t', override: '/mine.vpy'),
+      isNull,
+    );
+  });
+
   test('interpolation mode round-trips through json', () {
     const settings = EnhanceSettings(interpolation: InterpolationMode.rife);
     expect(EnhanceSettings.fromJson(settings.toJson()), settings);

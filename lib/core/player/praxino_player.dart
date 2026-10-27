@@ -73,6 +73,9 @@ class PraxinoPlayer {
     }
 
     player.stream.log.listen((l) => write('[mpv:${l.prefix}] ${l.text}'));
+    // mpv's own verbose log is written synchronously, so it survives crashes
+    // inside native filters.
+    _native.setProperty('log-file', '$path.mpv.log');
     _diagnosticsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       final stats = await playbackStats();
       final vf = await _native.getProperty('vf');
@@ -260,6 +263,11 @@ class PraxinoPlayer {
         .join(exeDir, 'data', 'flutter_assets', 'assets', 'shaders')
         .replaceAll('\\', '/');
   }
+
+  /// Directory that holds the bundled VapourSynth `.vpy` templates.
+  static String get vapoursynthTemplateDirectory => p.join(
+      p.dirname(Platform.resolvedExecutable),
+      'data', 'flutter_assets', 'assets', 'vapoursynth');
 
   /// Directory that holds [preset]'s shader files.
   static String shaderDirectoryFor(UpscalePreset preset) =>

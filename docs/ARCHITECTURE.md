@@ -124,14 +124,16 @@ UI ──► PraxinoPlayer ──► media_kit Player ──► libmpv
 换着色器家族时还要让 `PraxinoPlayer` 按预设选目录（当前 `shaderDirectory` 写死了 `anime4k`，M2-1 会改）。
 真人片建议加 ArtCNN 或 FSRCNNX（Anime4K 是为动画线条设计的，对实拍会涂抹）。
 
-### 5.2 L2 实时补帧（🟡 M2-3：mvtools 应用内已验证，RIFE 待验证）
+### 5.2 L2 实时补帧（🟡 M2-3：mvtools 与 RIFE 应用内均已验证）
 
 mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目前使用的 media_kit 发行包，
 自带的 libmpv 没有编译 VapourSynth 支持（M2-3 第一步先验证；如果其实支持，就省掉增强包）。方案：
 
 1. 做一个可选的"增强包"（不进安装包，首次使用时下载到 `%APPDATA%/Praxino/enhance-pack/`）：
-   带 VapourSynth 的 `libmpv-2.dll`（例如 shinchiro 的构建，需先用 `mpv --list-filters` / 试加载确认）
-   + 便携 Python + VapourSynth + `vs-rife`（TensorRT 后端）/ `mvtools`。
+   带 VapourSynth 的 `libmpv-2.dll`（shinchiro 的构建）+ 便携 Python + VapourSynth（R81）
+   + `mvtools` + VapourSynth-RIFE-ncnn-Vulkan（`librife.dll`，MIT）和 RIFE v4.6 模型
+   （放在 `<vapoursynth>/plugins/models/rife-v4.6`，模板按这个相对位置找，也可用 `PRAXINO_RIFE_MODEL` 覆盖）。
+   不用 vs-mlrt（Windows 插件仍是 VapourSynth API 3，R81 已拒绝加载）和 vs-rife（要数 GB 的 CUDA PyTorch）。
 2. **增强包必须替换应用目录里的 `libmpv-2.dll`，不能另外加载一份。**
    `media_kit_video_plugin.dll` 按名字直接导入 `libmpv-2.dll`，Windows 在 `main()` 之前就从应用目录加载它；
    如果再用 `MediaKit.ensureInitialized(libmpv: '<其它路径>')`，进程里会有两份 libmpv——播放器由一份创建、
@@ -142,9 +144,19 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
    VapourSynth 运行时（便携 Python + `site-packages/vapoursynth`）的路径在设置页填写，启动时由
    `VapourSynthRuntime` 写入进程环境——要同时写 Win32 环境块和 C 运行时的环境表，
    否则 Python 读不到 `PYTHONPATH`。
-3. `EnhanceSettings` 加 `interpolation` 字段：`off / mvtools(轻量,CPU) / rife(GPU)`，目标帧率跟随显示器刷新率。
+3. `EnhanceSettings.interpolation`：`off / mvtools(轻量,CPU) / rife(GPU)`。每种模式默认用
+   `assets/vapoursynth/` 里的内置模板（`interpolationScriptFor`），设置里的自定义 `.vpy` 只作覆盖。
    生成的 vf 要和 L1 的 hqdn3d 合并成一条链（见本节开头），不能直接覆盖 `vf`。
-4. RIFE 很吃显卡：1080p→60fps 在 RTX 4070 以上才稳。UI 要显示实际掉帧数（mpv 属性 `frame-drop-count`、`vo-delayed-frame-count`），掉帧时提示降档。
+   mvtools 模板输出约 60fps；RIFE 模板输出**2 倍帧率**——固定 60fps 需要每 5 帧推理 4 帧，
+   RTX 5080 上 1080p 只有约 40fps 吞吐（GPU 100%），2 倍约 60fps，实时有余量。
+4. **应用目录里不能有 media_kit ANGLE 包附带的开发版 `vulkan-1.dll` / `vk_swiftshader.dll`。**
+   Python 初始化后进程进入"安全 DLL 搜索"模式，此后按名字加载 `vulkan-1.dll` 会先命中应用目录里的那份，
+   即使系统版已经加载；进程里两个 Vulkan 加载器同时存在，RIFE（ncnn）一初始化就在 NVIDIA 驱动
+   `nvoglv64.dll` 里写入开发版加载器的内存而崩溃（崩溃转储确认）。media_kit 只用 ANGLE 的 D3D11 后端，
+   所以 `windows/CMakeLists.txt` 把这两个文件从安装列表里排除，并删除旧构建残留；
+   `VapourSynthRuntime` 也会先按完整路径预加载系统 `vulkan-1.dll`。
+5. RIFE 很吃显卡。UI 要显示实际掉帧数（mpv 属性 `frame-drop-count`、`vo-delayed-frame-count`），
+   掉帧时提示降档（⏳ M2-3 第 5 步）。
 
 ### 5.3 L3 离线处理（⏳ M5）
 

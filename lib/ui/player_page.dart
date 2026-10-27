@@ -12,6 +12,7 @@ import '../core/danmaku/danmaku_engine.dart';
 import '../core/danmaku/danmaku_service.dart';
 import '../core/enhance/enhance_advisor.dart';
 import '../core/enhance/enhance_settings.dart';
+import '../core/enhance/interpolation.dart';
 import '../core/library/local_files.dart';
 import '../core/library/watch_history.dart';
 import '../core/player/praxino_player.dart';
@@ -144,10 +145,18 @@ class _PlayerPageState extends State<PlayerPage> {
     _danmakuItems.value = items ?? const [];
   }
 
+  /// Bundled template for the chosen interpolation mode, unless the user
+  /// configured their own script in settings.
+  String? _scriptFor(EnhanceSettings value) => interpolationScriptFor(
+        value.interpolation,
+        templateDir: PraxinoPlayer.vapoursynthTemplateDirectory,
+        override: widget.settings.interpolationScriptPath,
+      );
+
   Future<void> _start() async {
     await _player.setEnhance(
       widget.settings.enhance,
-      vapoursynthScript: widget.settings.interpolationScriptPath,
+      vapoursynthScript: _scriptFor(widget.settings.enhance),
     );
     if (widget.streams.isNotEmpty) {
       await _openStream(widget.streams.first);
@@ -331,7 +340,7 @@ class _PlayerPageState extends State<PlayerPage> {
     if (byUser) _advisor.noteUserChoice(DateTime.now());
     await _player.setEnhance(
       value,
-      vapoursynthScript: widget.settings.interpolationScriptPath,
+      vapoursynthScript: _scriptFor(value),
     );
     if (!_player.comparing) {
       await widget.settings.setEnhance(value);

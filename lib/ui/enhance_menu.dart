@@ -76,7 +76,11 @@ class EnhanceButton extends StatelessWidget {
                     InterpolationMode.mvtools => 'mvtools',
                     InterpolationMode.rife => 'RIFE',
                   },
-                  '需要安装带 VapourSynth 的 libmpv 并配置 .vpy',
+                  switch (mode) {
+                    InterpolationMode.off => '原始帧率',
+                    InterpolationMode.mvtools => '运动补偿，CPU，轻量',
+                    InterpolationMode.rife => 'AI 补帧，GPU（Vulkan），效果更好',
+                  },
                 ),
               ),
           ],

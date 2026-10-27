@@ -144,6 +144,12 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
    VapourSynth 运行时（便携 Python + `site-packages/vapoursynth`）的路径在设置页填写，启动时由
    `VapourSynthRuntime` 写入进程环境——要同时写 Win32 环境块和 C 运行时的环境表，
    否则 Python 读不到 `PYTHONPATH`。
+   **一键安装**：`EnhancePackBundle` 用一个 manifest 描述多个组件（libmpv、便携 Python、
+   VapourSynth wheel、mvtools、librife、RIFE 模型），每项带 SHA256 和许可证；
+   `EnhancePackInstaller` 校验后解压到 `%APPDATA%/Praxino/enhance-pack/`，拒绝绝对路径和
+   `..` 穿越，再按“`python3xx.dll` 所在目录”和“同时含 `vsscript.dll` + `vapoursynth.pyd` 的目录”
+   自动填好两个路径。仓库不托管第三方二进制，manifest 指向官方发布地址；许可证结论见
+   [`ENHANCE_PACK.md`](ENHANCE_PACK.md)。
 3. `EnhanceSettings.interpolation`：`off / mvtools(轻量,CPU) / rife(GPU)`。每种模式默认用
    `assets/vapoursynth/` 里的内置模板（`interpolationScriptFor`），设置里的自定义 `.vpy` 只作覆盖。
    生成的 vf 要和 L1 的 hqdn3d 合并成一条链（见本节开头），不能直接覆盖 `vf`。

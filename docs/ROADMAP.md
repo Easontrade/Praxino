@@ -144,7 +144,8 @@
 
 > 🟡 部分完成：**应用内 mvtools 和 RIFE 补帧都已打通**（隐藏桌面实测，1080p）：
 > mvtools 23.976 → 59.94 fps；RIFE 23.976 → 47.952 fps（2 倍），启动后不再掉帧。
-> 剩余：掉帧提示降档（第 5 步）、真人肉眼观感、增强包一键安装 RIFE 插件和模型。
+> 剩余：真人肉眼观感。多文件增强包一键安装（manifest、SHA256、解压、自动填 Python/VapourSynth 路径）
+> 已完成并有 Mock 单测；真实大文件包下载需要联网手动验证，许可证结论见 [`ENHANCE_PACK.md`](ENHANCE_PACK.md)。
 >
 > 之前的"API 2.1/2.6 不兼容"是误判：真正原因是进程里加载了**两份** libmpv（见 ARCHITECTURE §5.2）。
 > 实测：2023-07 的 shinchiro 构建（mpv 0.35.0-579，API 2.1）用旧方式同样崩溃，放进应用目录后又因为太旧、
@@ -175,7 +176,7 @@
      - 补帧滤镜与 L1 的 `hqdn3d` 已合并进同一条 `vf` 链。
      - 应用目录**不能**带 media_kit ANGLE 包里的开发版 `vulkan-1.dll` / `vk_swiftshader.dll`
        （已在 `windows/CMakeLists.txt` 排除），否则 RIFE 一初始化就在 NVIDIA 驱动里崩溃，原因见 ARCHITECTURE §5.2。
-  5. 显示 `frame-drop-count`，掉帧时提示降档。
+  5. ✅ 显示 `frame-drop-count`，掉帧时提示降档。
 - **验收**：24fps 片源开启后，`estimated-vf-fps` 约等于显示器刷新率；关闭后能恢复；
   降噪和补帧可以同时开启且两者都生效；增强包缺失/校验失败时不影响普通播放。
 

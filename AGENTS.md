@@ -1,9 +1,10 @@
 # Praxino 开发指南（给 AI 代理和贡献者）
 
-开始之前先读这两份文档：
+开始之前先读这几份文档：
 
-1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：分层、接口、设计理由
-2. [`docs/ROADMAP.md`](docs/ROADMAP.md)：按顺序排好的任务卡，每张卡都写了验收标准
+1. [`docs/HANDOFF.md`](docs/HANDOFF.md)：剩余工作的顺序、难度和已经踩过的坑（先读这个）
+2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：分层、接口、设计理由
+3. [`docs/ROADMAP.md`](docs/ROADMAP.md)：按顺序排好的任务卡，每张卡都写了验收标准
 
 ## 工作方式
 

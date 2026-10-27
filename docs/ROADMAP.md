@@ -291,7 +291,10 @@
 - **验收**：fixture 覆盖目录解析、中文/空格路径编码、401；用户本机连 OpenList 能列目录并播放、
   下一集和续播生效；日志和崩溃信息里搜不到密码。
 
-### M3-8 Jellyfin / Emby 客户端 ⏳
+### M3-8 Jellyfin / Emby 客户端 🟡
+
+> 🟡 部分完成：登录、媒体库/条目、Direct Play URL、中文字幕优先、进度上报和 token 失效均有 Mock 单测；海报墙/媒体库 UI、真实服务器和播放器进度回传尚未接。
+
 - **目标**：连接用户自建的 Jellyfin/Emby 媒体服务器，显示媒体库和海报墙，播放并同步观看进度。
 - **文件**：`lib/core/sources/jellyfin/jellyfin_client.dart`、`jellyfin_adapter.dart`（新建）、
   `lib/ui/library_page.dart`（新建）、`test/jellyfin_client_test.dart`（新建）

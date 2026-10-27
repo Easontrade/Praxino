@@ -759,6 +759,7 @@ class _PlayerPageState extends State<PlayerPage> {
     ];
 
     final theme = MaterialDesktopVideoControlsThemeData(
+      playAndPauseOnTap: true,
       seekBarPositionColor: Theme.of(context).colorScheme.primary,
       seekBarThumbColor: Theme.of(context).colorScheme.primary,
       bottomButtonBar: bar,

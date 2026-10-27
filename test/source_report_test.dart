@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:praxino/core/settings/settings_store.dart';
 import 'package:praxino/core/sources/reliability/source_prober.dart';
 import 'package:praxino/core/sources/source_adapter.dart';
 import 'package:praxino/core/sources/source_report.dart';
 import 'package:praxino/ui/source_report_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 SourceReportEntry _entry(
   String source, {
@@ -78,10 +80,13 @@ void main() {
 
   testWidgets('renders a reachable source with quality and link',
       (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await SettingsStore.load();
     final adapter = _FakeAdapter();
     await tester.pumpWidget(MaterialApp(
       home: SourceReportPage(
         query: 'FX战士久留美',
+        settings: store,
         inputs: [
           SourceReportInput(
             adapter: adapter,
@@ -108,7 +113,7 @@ void main() {
     }
 
     expect(find.textContaining('可播放'), findsOneWidget);
-    expect(find.textContaining('1080p'), findsOneWidget);
+    expect(find.textContaining('1080p'), findsWidgets);
     expect(find.byType(SelectableText), findsOneWidget);
   });
 }

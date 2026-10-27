@@ -20,12 +20,17 @@ class MediaDetailPage extends StatefulWidget {
     required this.media,
     required this.settings,
     this.prober,
+    this.autoPlay = false,
   });
 
   final SourceAdapter adapter;
   final MediaSummary media;
   final SettingsStore settings;
   final SourceProber? prober;
+
+  /// Play the first episode as soon as the episode list loads. Used by the
+  /// source ranking so one click on a "需抓流" row starts playback directly.
+  final bool autoPlay;
 
   @override
   State<MediaDetailPage> createState() => _MediaDetailPageState();
@@ -39,6 +44,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   SourceProber? _prober;
   WebViewSnifferBackend? _sniffer;
   bool _sniffing = false;
+  bool _autoPlayed = false;
 
   @override
   void initState() {
@@ -72,6 +78,13 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
       final groups = await widget.adapter.episodes(widget.media);
       if (!mounted) return;
       setState(() => _groups = groups);
+      if (widget.autoPlay &&
+          !_autoPlayed &&
+          groups.isNotEmpty &&
+          groups.first.episodes.isNotEmpty) {
+        _autoPlayed = true;
+        await _play(groups.first.episodes.first);
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     }

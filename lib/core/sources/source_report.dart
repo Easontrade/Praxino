@@ -15,6 +15,10 @@ class SourceReportEntry {
     required this.matchScore,
     this.latency,
     this.detail = '',
+    this.stream,
+    this.adapter,
+    this.media,
+    this.episode,
   });
 
   final String sourceName;
@@ -25,6 +29,13 @@ class SourceReportEntry {
   final double matchScore;
   final Duration? latency;
   final String detail;
+
+  /// Playback context: direct stream when resolved, otherwise the source and
+  /// media so the UI can open the detail page and let the sniffer find it.
+  final PlayableStream? stream;
+  final SourceAdapter? adapter;
+  final MediaSummary? media;
+  final Episode? episode;
 
   String get statusLabel => switch (status) {
         SourceReportStatus.reachable => '可播放',
@@ -81,6 +92,21 @@ class SourceReport {
         SourceReportStatus.unresolved => 1,
         SourceReportStatus.unreachable => 2,
       };
+
+  /// The entry the "play best source" button should use: first direct stream,
+  /// otherwise the first row that can open its detail page and sniff.
+  static SourceReportEntry? bestEntry(List<SourceReportEntry> entries) {
+    for (final entry in entries) {
+      final stream = entry.stream;
+      if (stream != null && !looksLikeLandingPage(stream.url)) {
+        return entry;
+      }
+    }
+    for (final entry in entries) {
+      if (entry.adapter != null && entry.media != null) return entry;
+    }
+    return null;
+  }
 
   /// A `/play/...` or `.html` URL is a player page, not a media stream; mpv
   /// cannot open it directly, so the report marks it as needing the sniffer.

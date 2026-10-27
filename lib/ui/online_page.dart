@@ -21,6 +21,7 @@ import '../core/sources/ytdlp/ytdlp_adapter.dart';
 import 'extra_sources_page.dart';
 import 'media_detail_page.dart';
 import 'source_report_page.dart';
+import 'source_report_play.dart';
 import 'subscriptions_page.dart';
 
 /// Searches every enabled subscription and drills into one hit.
@@ -272,6 +273,7 @@ class _OnlinePageState extends State<OnlinePage> {
       builder: (_) => SourceReportPage(
         query: _query.text.trim(),
         inputs: inputs,
+        settings: widget.settings,
       ),
     ));
   }
@@ -399,6 +401,7 @@ class _OnlinePageState extends State<OnlinePage> {
 
   Widget _rankingSection() {
     final progress = _rankTotal == 0 ? null : _rankDone / _rankTotal;
+    final best = SourceReport.bestEntry(_rankEntries);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -407,7 +410,7 @@ class _OnlinePageState extends State<OnlinePage> {
           title: const Text('源排行（自动检测）'),
           subtitle: Text(_rankRunning
               ? '正在检测 $_rankDone / $_rankTotal 个源'
-              : '可播放优先，其次质量、延迟；点击行复制链接'),
+              : '可播放优先；点击行直接播放，右侧可复制链接'),
           trailing: _rankRunning
               ? const SizedBox(
                   width: 20,
@@ -421,6 +424,18 @@ class _OnlinePageState extends State<OnlinePage> {
                 ),
         ),
         if (_rankRunning) LinearProgressIndicator(value: progress),
+        if (best != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: FilledButton.icon(
+              onPressed: () => playReportEntry(context, widget.settings, best),
+              icon: const Icon(Icons.play_arrow),
+              label: Text(
+                '播放最佳源：${best.sourceName} · ${best.quality}',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
         for (final entry in _rankEntries)
           ListTile(
             dense: true,
@@ -461,12 +476,23 @@ class _OnlinePageState extends State<OnlinePage> {
               ],
             ),
             isThreeLine: true,
-            trailing: IconButton(
-              tooltip: '复制链接',
-              icon: const Icon(Icons.copy),
-              onPressed: () => _copy(entry.link),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: '播放',
+                  icon: const Icon(Icons.play_arrow),
+                  onPressed: () =>
+                      playReportEntry(context, widget.settings, entry),
+                ),
+                IconButton(
+                  tooltip: '复制链接',
+                  icon: const Icon(Icons.copy),
+                  onPressed: () => _copy(entry.link),
+                ),
+              ],
             ),
-            onTap: () => _copy(entry.link),
+            onTap: () => playReportEntry(context, widget.settings, entry),
           ),
       ],
     );

@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
+import '../core/settings/settings_store.dart';
 import '../core/sources/reliability/source_prober.dart';
 import '../core/sources/source_report.dart';
 import '../core/sources/source_report_runner.dart';
+import 'source_report_play.dart';
 
 /// Ranks every source that returned a hit: resolve the first episode, probe the
 /// stream, then show playability, quality and the direct link.
@@ -15,12 +17,14 @@ class SourceReportPage extends StatefulWidget {
     super.key,
     required this.query,
     required this.inputs,
+    required this.settings,
     this.probe,
     this.httpClient,
   });
 
   final String query;
   final List<SourceReportInput> inputs;
+  final SettingsStore settings;
 
   /// Test seams; production uses a real HTTP probe/client.
   final StreamProbe? probe;
@@ -76,6 +80,7 @@ class _SourceReportPageState extends State<SourceReportPage> {
     final done = runner?.done ?? 0;
     final running = runner?.running ?? false;
     final progress = total == 0 ? null : done / total;
+    final best = SourceReport.bestEntry(entries);
     return Scaffold(
       appBar: AppBar(
         title: Text('源排行 · ${widget.query}'),
@@ -89,6 +94,21 @@ class _SourceReportPageState extends State<SourceReportPage> {
       ),
       body: Column(
         children: [
+          if (best != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => playReportEntry(context, widget.settings, best),
+                  icon: const Icon(Icons.play_arrow),
+                  label: Text(
+                    '播放最佳源：${best.sourceName} · ${best.quality}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
           if (running)
             Column(
               children: [
@@ -146,11 +166,24 @@ class _SourceReportPageState extends State<SourceReportPage> {
                           ],
                         ),
                         isThreeLine: true,
-                        trailing: IconButton(
-                          tooltip: '复制链接',
-                          icon: const Icon(Icons.copy),
-                          onPressed: () => _copy(entry.link),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: '播放',
+                              icon: const Icon(Icons.play_arrow),
+                              onPressed: () =>
+                                  playReportEntry(context, widget.settings, entry),
+                            ),
+                            IconButton(
+                              tooltip: '复制链接',
+                              icon: const Icon(Icons.copy),
+                              onPressed: () => _copy(entry.link),
+                            ),
+                          ],
                         ),
+                        onTap: () =>
+                            playReportEntry(context, widget.settings, entry),
                       );
                     },
                   ),

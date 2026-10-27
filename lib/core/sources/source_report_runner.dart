@@ -101,6 +101,8 @@ class SourceReportRunner {
           quality: '未知',
           matchScore: score,
           detail: '没有解析到剧集',
+          adapter: adapter,
+          media: media,
         );
       } else {
         final episode = groups.first.episodes.first;
@@ -124,6 +126,10 @@ class SourceReportRunner {
             detail: stream == null
                 ? '需要 WebView 抓流；从搜索结果打开这一集会继续解析'
                 : '这是播放页而不是直链，需要 WebView 抓流',
+            stream: stream,
+            adapter: adapter,
+            media: media,
+            episode: episode,
           );
         } else {
           final hls = await hlsResolution(stream);
@@ -146,6 +152,10 @@ class SourceReportRunner {
             matchScore: score,
             latency: probe.latency,
             detail: probe.reachable ? '' : '${probe.error ?? '无法连接'}',
+            stream: stream,
+            adapter: adapter,
+            media: media,
+            episode: episode,
           );
         }
       }
@@ -158,6 +168,8 @@ class SourceReportRunner {
         quality: '未知',
         matchScore: score,
         detail: '$error',
+        adapter: adapter,
+        media: media,
       );
     }
     if (_cancelled) return;

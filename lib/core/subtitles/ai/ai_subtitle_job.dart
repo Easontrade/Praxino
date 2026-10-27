@@ -8,7 +8,7 @@ import 'package:path/path.dart' as p;
 import '../../enhance/offline/offline_job.dart';
 import '../../process/process_runner.dart';
 import 'bilingual_ass.dart';
-import 'claude_translator.dart';
+import 'deepseek_translator.dart';
 import 'transcriber.dart';
 import 'transcript.dart';
 import 'translator.dart';
@@ -30,8 +30,9 @@ class AiSubtitleSettings {
     this.whisperExecutable = '',
     this.whisperModel = '',
     this.whisperFlavor = WhisperFlavor.whisperCpp,
-    this.claudeApiKey = '',
-    this.claudeModel = ClaudeModels.haiku,
+    this.apiKey = '',
+    this.model = DeepSeekModels.chat,
+    this.endpoint = kDeepSeekEndpoint,
     this.sourceLanguage,
     this.cacheDir,
     this.batchSize = 40,
@@ -42,8 +43,11 @@ class AiSubtitleSettings {
   final String whisperExecutable;
   final String whisperModel;
   final WhisperFlavor whisperFlavor;
-  final String claudeApiKey;
-  final String claudeModel;
+  final String apiKey;
+  final String model;
+
+  /// OpenAI-compatible DeepSeek endpoint; configurable for proxies.
+  final String endpoint;
 
   /// Optional ISO code such as `en`; empty means auto detect.
   final String? sourceLanguage;
@@ -55,7 +59,7 @@ class AiSubtitleSettings {
   /// Neighbouring lines attached to a batch as read-only context.
   final int contextSize;
 
-  bool get hasApiKey => claudeApiKey.trim().isNotEmpty;
+  bool get hasApiKey => apiKey.trim().isNotEmpty;
 
   bool get canTranscribe =>
       whisperExecutable.trim().isNotEmpty && whisperModel.trim().isNotEmpty;
@@ -82,8 +86,9 @@ class AiSubtitleSettings {
     String? whisperExecutable,
     String? whisperModel,
     WhisperFlavor? whisperFlavor,
-    String? claudeApiKey,
-    String? claudeModel,
+    String? apiKey,
+    String? model,
+    String? endpoint,
     String? sourceLanguage,
     String? cacheDir,
     int? batchSize,
@@ -94,8 +99,9 @@ class AiSubtitleSettings {
         whisperExecutable: whisperExecutable ?? this.whisperExecutable,
         whisperModel: whisperModel ?? this.whisperModel,
         whisperFlavor: whisperFlavor ?? this.whisperFlavor,
-        claudeApiKey: claudeApiKey ?? this.claudeApiKey,
-        claudeModel: claudeModel ?? this.claudeModel,
+        apiKey: apiKey ?? this.apiKey,
+        model: model ?? this.model,
+        endpoint: endpoint ?? this.endpoint,
         sourceLanguage: sourceLanguage ?? this.sourceLanguage,
         cacheDir: cacheDir ?? this.cacheDir,
         batchSize: batchSize ?? this.batchSize,
@@ -107,8 +113,9 @@ class AiSubtitleSettings {
         'whisperExe': whisperExecutable,
         'whisperModel': whisperModel,
         'whisperFlavor': whisperFlavor.name,
-        'claudeApiKey': claudeApiKey,
-        'claudeModel': claudeModel,
+        'apiKey': apiKey,
+        'model': model,
+        'endpoint': endpoint,
         'sourceLanguage': sourceLanguage ?? '',
         'cacheDir': cacheDir ?? '',
         'batchSize': batchSize,
@@ -132,13 +139,22 @@ class AiSubtitleSettings {
         .firstOrNull;
     final language = string('sourceLanguage').trim();
     final cacheDir = string('cacheDir').trim();
+    final endpoint = string('endpoint', kDeepSeekEndpoint).trim();
+    // Settings saved before the DeepSeek switch stored Claude field names;
+    // read them once so an update does not drop the user's key.
+    final apiKey = string('apiKey', string('claudeApiKey'));
+    var model = string('model', string('claudeModel', DeepSeekModels.chat));
+    if (model.toLowerCase().contains('claude')) {
+      model = DeepSeekModels.chat;
+    }
     return AiSubtitleSettings(
       ffmpegExecutable: string('ffmpeg', 'ffmpeg'),
       whisperExecutable: string('whisperExe'),
       whisperModel: string('whisperModel'),
       whisperFlavor: flavor ?? WhisperFlavor.whisperCpp,
-      claudeApiKey: string('claudeApiKey'),
-      claudeModel: string('claudeModel', ClaudeModels.haiku),
+      apiKey: apiKey,
+      model: model,
+      endpoint: endpoint.isEmpty ? kDeepSeekEndpoint : endpoint,
       sourceLanguage: language.isEmpty ? null : language,
       cacheDir: cacheDir.isEmpty ? null : cacheDir,
       batchSize: integer('batchSize', 40),
@@ -307,7 +323,7 @@ class AiSubtitleProcessor implements OfflineProcessor {
   Transcriber? _transcriber;
   Translator? _translator;
   http.Client? _httpClient;
-  ClaudeTranslator? _ownedTranslator;
+  DeepSeekTranslator? _ownedTranslator;
 
   @override
   Future<void> run(
@@ -335,7 +351,7 @@ class AiSubtitleProcessor implements OfflineProcessor {
 
     if (_translator == null && !settings.hasApiKey) {
       throw const TranslationException(
-          '未配置 Claude API Key，请在“设置 → AI 双语字幕”里填写');
+          '未配置 DeepSeek API Key，请在“设置 → AI 双语字幕”里填写');
     }
     final translator = _ensureTranslator();
 
@@ -429,9 +445,11 @@ class AiSubtitleProcessor implements OfflineProcessor {
   Translator _ensureTranslator() {
     final injected = _translator;
     if (injected != null) return injected;
-    final owned = ClaudeTranslator(
-      apiKey: settings.claudeApiKey,
-      model: settings.claudeModel,
+    final endpoint = Uri.tryParse(settings.endpoint);
+    final owned = DeepSeekTranslator(
+      apiKey: settings.apiKey,
+      model: settings.model,
+      endpoint: endpoint != null && endpoint.hasScheme ? endpoint : null,
       client: _httpClient,
     );
     _ownedTranslator = owned;

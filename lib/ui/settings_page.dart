@@ -12,7 +12,7 @@ import '../core/enhance/enhance_pack_bundle.dart';
 import '../core/enhance/enhance_pack_paths.dart';
 import '../core/settings/keybindings.dart';
 import '../core/settings/settings_store.dart';
-import '../core/subtitles/ai/claude_translator.dart';
+import '../core/subtitles/ai/deepseek_translator.dart';
 import '../core/subtitles/ai/transcriber.dart';
 import '../core/subtitles/opensubtitles_provider.dart';
 import '../core/update/update_checker.dart';
@@ -568,22 +568,23 @@ class _SettingsPageState extends State<SettingsPage> {
     final whisper = ai.whisperExecutable.trim().isEmpty
         ? '未配置 Whisper'
         : '${ai.whisperFlavor == WhisperFlavor.fasterWhisper ? 'faster-whisper' : 'whisper.cpp'} 已配置';
-    return '$whisper · ${ai.hasApiKey ? 'API Key 已配置' : '未配置 API Key'}';
+    return '$whisper · ${ai.hasApiKey ? 'DeepSeek Key 已配置' : '未配置 DeepSeek Key'}';
   }
 
   Future<void> _aiSubtitles() async {
     final current = widget.settings.aiSubtitles;
     final whisperExe = TextEditingController(text: current.whisperExecutable);
     final whisperModel = TextEditingController(text: current.whisperModel);
-    final apiKey = TextEditingController(text: current.claudeApiKey);
+    final apiKey = TextEditingController(text: current.apiKey);
+    final endpoint = TextEditingController(text: current.endpoint);
     final sourceLanguage =
         TextEditingController(text: current.sourceLanguage ?? '');
     var flavor = current.whisperFlavor;
-    var model = current.claudeModel;
+    var model = current.model;
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => DialogScope(
-        controllers: [whisperExe, whisperModel, apiKey, sourceLanguage],
+        controllers: [whisperExe, whisperModel, apiKey, endpoint, sourceLanguage],
         child: StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
             title: const Text('AI 双语字幕'),
@@ -629,20 +630,27 @@ class _SettingsPageState extends State<SettingsPage> {
                       controller: apiKey,
                       obscureText: true,
                       decoration: const InputDecoration(
-                        labelText: 'Claude API Key',
+                        labelText: 'DeepSeek API Key',
                         helperText: '只保存在本机设置里，不写日志、不进仓库',
+                      ),
+                    ),
+                    TextField(
+                      controller: endpoint,
+                      decoration: const InputDecoration(
+                        labelText: 'API 地址（OpenAI 兼容）',
+                        hintText: kDeepSeekEndpoint,
                       ),
                     ),
                     DropdownButtonFormField<String>(
                       initialValue: model,
-                      decoration: const InputDecoration(labelText: 'Claude 模型'),
+                      decoration: const InputDecoration(labelText: 'DeepSeek 模型'),
                       items: [
-                        for (final id in ClaudeModels.known)
+                        for (final id in DeepSeekModels.known)
                           DropdownMenuItem(
                             value: id,
-                            child: Text(_claudeModelLabel(id)),
+                            child: Text(_modelLabel(id)),
                           ),
-                        if (!ClaudeModels.known.contains(model))
+                        if (!DeepSeekModels.known.contains(model))
                           DropdownMenuItem(value: model, child: Text(model)),
                       ],
                       onChanged: (value) {
@@ -658,7 +666,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '识别在本机用 Whisper 完成（免费）；翻译调用 Claude API 并计费，'
+                      '识别在本机用 Whisper 完成（免费）；翻译调用 DeepSeek API 并计费，'
                       '任务开始前会显示预估费用并等待确认。重复处理同一文件直接复用缓存，不重复计费。',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
@@ -685,8 +693,9 @@ class _SettingsPageState extends State<SettingsPage> {
       whisperExecutable: whisperExe.text.trim(),
       whisperModel: whisperModel.text.trim(),
       whisperFlavor: flavor,
-      claudeApiKey: apiKey.text.trim(),
-      claudeModel: model,
+      apiKey: apiKey.text.trim(),
+      model: model,
+      endpoint: endpoint.text.trim(),
       sourceLanguage: sourceLanguage.text.trim(),
     ));
     if (mounted) {
@@ -695,9 +704,9 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  static String _claudeModelLabel(String id) => switch (id) {
-        ClaudeModels.haiku => 'Claude Haiku（便宜、够用）',
-        ClaudeModels.sonnet => 'Claude Sonnet（更准、更贵）',
+  static String _modelLabel(String id) => switch (id) {
+        DeepSeekModels.chat => 'DeepSeek Chat（便宜、够用）',
+        DeepSeekModels.reasoner => 'DeepSeek Reasoner（更准、更贵）',
         _ => id,
       };
 

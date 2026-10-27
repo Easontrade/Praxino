@@ -12,8 +12,8 @@
 - **Jellyfin / Emby**：登录、媒体库/条目、Direct Play、中文字幕优先、进度上报与从服务器进度续播；完整海报墙还缺。
 - **增强包一键安装**：多文件 manifest、SHA256、解压、自动填 Python/VapourSynth 路径；许可证结论见
   [`ENHANCE_PACK.md`](ENHANCE_PACK.md)。
-- **AI 双语字幕**：本地 Whisper 识别 + Claude 分段翻译 + 双语 ASS/中文 SRT + 离线队列 + 费用确认；
-  真实 Whisper/Claude 调用尚未验证。
+- **AI 双语字幕**：本地 Whisper 识别 + DeepSeek 分段翻译 + 双语 ASS/中文 SRT + 离线队列 + 费用确认；
+  真实 Whisper/DeepSeek 调用尚未验证。
 - **Windows 集成测试**：`integration_test/app_test.dart` 6 条流程，本地隐藏桌面全过；CI 步骤已加，待推送验证。
 - 已验证与未验证的项目逐条记在 [`VERIFICATION.md`](VERIFICATION.md)。
 
@@ -25,7 +25,7 @@
 |---|---|---|---|---|
 | 1 | WebDAV / OpenList 真实服务器验证 | M3-7 | ★★ | 代码完成；需要用户自己的 OpenList/WebDAV 地址，验证列表、续播、下一集、字幕和 401 提示 |
 | 2 | Jellyfin 完整海报墙 | M3-8 | ★★ | 媒体库 UI 已有；缺按季/集分组的整页海报墙与图片缓存 |
-| 3 | 真实 AI 字幕端到端 | M5-3 | ★★★ | 需要本机 Whisper 模型和付费 Claude Key；用 5 分钟英文片段核对时间轴、译名一致和费用 |
+| 3 | 真实 AI 字幕端到端 | M5-3 | ★★★ | 需要本机 Whisper 模型和付费 DeepSeek Key；用 5 分钟英文片段核对时间轴、译名一致和费用 |
 | 4 | 推送并确认 CI | M7-1 | ★ | 需要用户明确同意；重点确认 GitHub Actions 上 Windows 集成测试能建窗口 |
 | 5 | 用户亲测清单 | M7-2 | ★ | 界面、补帧观感、快捷键、安装包等只能由用户亲眼确认 |
 | 6 | GitHub Release 打 tag | M6-2 | ★ | 必须用户同意后执行 |
@@ -34,7 +34,7 @@
 - 用户亲自看一遍界面和补帧画面（M7-2 清单）。
 - 弹弹play 审核通过后，用户把 `DANDANPLAY_APP_ID` / `DANDANPLAY_APP_SECRET` 加到 GitHub Secrets。
 - OpenSubtitles 真实账号下载、3 个私有源实播（M3-3）。
-- 真实 WebDAV / Jellyfin 服务器、Whisper 模型和 Claude API Key。
+- 真实 WebDAV / Jellyfin 服务器、Whisper 模型和 DeepSeek API Key。
 - 推送 GitHub、第一次正式发布打 tag（M6-2），都必须用户同意。
 
 ## 已经踩过的坑（不要重新踩）
@@ -57,7 +57,7 @@
 8. **同一时间只让一个会话写这个仓库。**
 9. **集成测试会创建真实窗口。** 代理不要直接 `flutter test integration_test -d windows`；
    用独立桌面运行（可复用 `tool/hidden_smoke.ps1` 的 CreateDesktop 思路），或交给 CI。
-10. **Claude 模型 id 只是设置项。** 默认 `claude-haiku-5-5` / `claude-sonnet-5-5` 必须按账号实际可用模型核对；
+10. **DeepSeek 模型 id 只是设置项。** 默认 `deepseek-chat` / `deepseek-reasoner` 必须按账号实际可用模型核对；
     费用估算按字数粗略计算，真实费用以 API 账单为准，任务开始前的确认对话框不是账单承诺。
 
 ## 杂项
@@ -65,3 +65,4 @@
 - 本地分支 `backup/pre-rewrite`、`backup/pre-squash` 是历史改写前的备份，**不要推送**；确认无用后删除。
 - 测试 QuickJS 需要先构建，并设置 `FLUTTER_QJS_NEXT_LIBRARY` 指向构建出的 `flutter_qjs_next_plugin.dll`
   （CI 已这样做）。
+

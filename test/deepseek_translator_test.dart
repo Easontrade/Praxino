@@ -3,14 +3,16 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:praxino/core/subtitles/ai/claude_translator.dart';
+import 'package:praxino/core/subtitles/ai/deepseek_translator.dart';
 import 'package:praxino/core/subtitles/ai/transcript.dart';
 import 'package:praxino/core/subtitles/ai/translator.dart';
 
-http.Response _claudeResponse(String text) => http.Response.bytes(
+http.Response _deepSeekResponse(String text) => http.Response.bytes(
       utf8.encode(jsonEncode({
-        'content': [
-          {'type': 'text', 'text': text},
+        'choices': [
+          {
+            'message': {'role': 'assistant', 'content': text},
+          },
         ],
       })),
       200,
@@ -28,13 +30,13 @@ TranslationBatch _batch(List<TranscriptSegment> segments) =>
     TranslationBatch(segments: segments);
 
 void main() {
-  test('posts a Messages request and aligns the JSON result by id', () async {
+  test('posts a chat-completions request and aligns the JSON result by id', () async {
     final requests = <http.Request>[];
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
       client: MockClient((request) async {
         requests.add(request);
-        return _claudeResponse('[{"id":1,"zh":"你好"},{"id":2,"zh":"再见"}]');
+        return _deepSeekResponse('[{"id":1,"zh":"你好"},{"id":2,"zh":"再见"}]');
       }),
     );
 
@@ -46,26 +48,26 @@ void main() {
     expect(result.fallbackIds, isEmpty);
 
     final request = requests.single;
-    expect(request.url.toString(), 'https://api.anthropic.com/v1/messages');
+    expect(request.url.toString(), kDeepSeekEndpoint);
     expect(request.method, 'POST');
-    expect(request.headers['x-api-key'], 'test-key');
-    expect(request.headers['anthropic-version'], '2023-06-01');
+    expect(request.headers['authorization'], 'Bearer test-key');
     expect(request.headers['content-type'], startsWith('application/json'));
 
     final body = jsonDecode(request.body) as Map<String, dynamic>;
-    expect(body['model'], ClaudeModels.haiku);
+    expect(body['model'], DeepSeekModels.chat);
     expect(body['max_tokens'], isA<int>());
-    expect(body['messages'], hasLength(1));
+    expect(body['messages'], hasLength(2));
+    expect(body['messages'][0]['role'], 'system');
     expect(request.body, contains('Hello'));
   });
 
   test('sends context lines and the glossary with the batch', () async {
     final requests = <http.Request>[];
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
       client: MockClient((request) async {
         requests.add(request);
-        return _claudeResponse('[{"id":2,"zh":"普拉克西诺启动"}]');
+        return _deepSeekResponse('[{"id":2,"zh":"普拉克西诺启动"}]');
       }),
     );
 
@@ -89,9 +91,9 @@ void main() {
   });
 
   test('parses a fenced JSON answer', () async {
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
-      client: MockClient((request) async => _claudeResponse(
+      client: MockClient((request) async => _deepSeekResponse(
             '```json\n[{"id":1,"zh":"你好"}]\n```',
           )),
     );
@@ -104,9 +106,9 @@ void main() {
   });
 
   test('parses a JSON array embedded in prose', () async {
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
-      client: MockClient((request) async => _claudeResponse(
+      client: MockClient((request) async => _deepSeekResponse(
             'Here is the result:\n[{"id":1,"zh":"你好"}]\nDone.',
           )),
     );
@@ -121,15 +123,15 @@ void main() {
 
   test('retries once for ids the model skipped', () async {
     var calls = 0;
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
       client: MockClient((request) async {
         calls++;
         if (calls == 1) {
           // The model dropped id 2 and hallucinated id 99.
-          return _claudeResponse('[{"id":1,"zh":"你好"},{"id":99,"zh":"多出来"}]');
+          return _deepSeekResponse('[{"id":1,"zh":"你好"},{"id":99,"zh":"多出来"}]');
         }
-        return _claudeResponse('[{"id":2,"zh":"再见"}]');
+        return _deepSeekResponse('[{"id":2,"zh":"再见"}]');
       }),
     );
 
@@ -146,11 +148,11 @@ void main() {
   test('falls back to the original text when the retry also misses it',
       () async {
     var calls = 0;
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
       client: MockClient((request) async {
         calls++;
-        return _claudeResponse('[{"id":1,"zh":"你好"}]');
+        return _deepSeekResponse('[{"id":1,"zh":"你好"}]');
       }),
     );
 
@@ -165,11 +167,11 @@ void main() {
 
   test('keeps the first result when the retry itself fails', () async {
     var calls = 0;
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
       client: MockClient((request) async {
         calls++;
-        if (calls == 1) return _claudeResponse('[{"id":1,"zh":"你好"}]');
+        if (calls == 1) return _deepSeekResponse('[{"id":1,"zh":"你好"}]');
         return http.Response('gone', 500);
       }),
     );
@@ -186,16 +188,16 @@ void main() {
 
   test('extracts a glossary before translating', () async {
     final bodies = <String>[];
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
       client: MockClient((request) async {
         bodies.add(request.body);
         if (bodies.length == 1) {
-          return _claudeResponse(
+          return _deepSeekResponse(
             '[{"source":"Praxino","target":"普拉克西诺"}]',
           );
         }
-        return _claudeResponse('[{"id":1,"zh":"普拉克西诺启动"}]');
+        return _deepSeekResponse('[{"id":1,"zh":"普拉克西诺启动"}]');
       }),
     );
 
@@ -215,11 +217,11 @@ void main() {
   test('missing API key throws a readable Chinese error without any request',
       () async {
     var called = false;
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: '   ',
       client: MockClient((request) async {
         called = true;
-        return _claudeResponse('[]');
+        return _deepSeekResponse('[]');
       }),
     );
 
@@ -242,7 +244,7 @@ void main() {
 
   test('maps HTTP failures to Chinese errors without leaking the key',
       () async {
-    final unauthorized = ClaudeTranslator(
+    final unauthorized = DeepSeekTranslator(
       apiKey: 'secret-key-value',
       client: MockClient((request) async => http.Response('nope', 401)),
     );
@@ -256,7 +258,7 @@ void main() {
               isNot(contains('secret-key-value')))),
     );
 
-    final unavailable = ClaudeTranslator(
+    final unavailable = DeepSeekTranslator(
       apiKey: 'secret-key-value',
       client: MockClient((request) async => http.Response('down', 503)),
     );
@@ -273,7 +275,7 @@ void main() {
   });
 
   test('rejects a response that is not JSON', () async {
-    final translator = ClaudeTranslator(
+    final translator = DeepSeekTranslator(
       apiKey: 'test-key',
       client: MockClient((request) async => http.Response('not json', 200)),
     );
@@ -286,3 +288,4 @@ void main() {
     );
   });
 }
+

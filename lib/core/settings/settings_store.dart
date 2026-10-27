@@ -345,8 +345,8 @@ class SettingsStore {
     await _prefs.setString(_vsSiteKey, siteDir.trim());
   }
 
-  /// Local Whisper + Claude settings for AI bilingual subtitles. The API key
-  /// lives only in the local settings file; it is never logged.
+  /// Local Whisper + DeepSeek settings for AI bilingual subtitles. The API
+  /// key lives only in the local settings file; it is never logged.
   AiSubtitleSettings get aiSubtitles {
     final raw = _prefs.getString(_aiSubtitleKey);
     if (raw == null) return const AiSubtitleSettings();

@@ -6,7 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:praxino/core/enhance/offline/offline_job.dart';
 import 'package:praxino/core/process/process_runner.dart';
 import 'package:praxino/core/subtitles/ai/ai_subtitle_job.dart';
-import 'package:praxino/core/subtitles/ai/claude_translator.dart';
+import 'package:praxino/core/subtitles/ai/deepseek_translator.dart';
 import 'package:praxino/core/subtitles/ai/transcriber.dart';
 import 'package:praxino/core/subtitles/ai/transcript.dart';
 import 'package:praxino/core/subtitles/ai/translator.dart';
@@ -86,7 +86,7 @@ class _ExplodingTranscriber implements Transcriber {
 
 class _FakeTranslator implements Translator {
   @override
-  final String model = ClaudeModels.haiku;
+  final String model = DeepSeekModels.chat;
   int glossaryCalls = 0;
   int translateCalls = 0;
   final List<TranslationBatch> batches = [];
@@ -116,7 +116,7 @@ class _FakeTranslator implements Translator {
 
 class _ExplodingTranslator implements Translator {
   @override
-  String get model => ClaudeModels.haiku;
+  String get model => DeepSeekModels.chat;
 
   @override
   Future<Map<String, String>> extractGlossary(
@@ -174,7 +174,7 @@ void main() {
         ffmpegExecutable: 'ffmpeg-test',
         whisperExecutable: 'whisper-test',
         whisperModel: 'model-test',
-        claudeApiKey: 'test-key',
+        apiKey: 'test-key',
         cacheDir: p.join(dir.path, 'cache'),
       ),
       transcriber: transcriber,
@@ -207,7 +207,7 @@ void main() {
     expect(translator.translateCalls, 1);
     expect(estimate, isNotNull);
     expect(estimate!.segmentCount, 3);
-    expect(estimate!.model, ClaudeModels.haiku);
+    expect(estimate!.model, DeepSeekModels.chat);
     expect(estimate!.estimatedUsd, greaterThan(0));
     expect(progress.first, 0);
     expect(progress.last, 1);
@@ -232,7 +232,7 @@ void main() {
     final dir = await _tempDir();
     final video = await _video(dir);
     final settings = AiSubtitleSettings(
-      claudeApiKey: 'test-key',
+      apiKey: 'test-key',
       cacheDir: p.join(dir.path, 'cache'),
     );
     final job = OfflineJob.forAiSubtitle(video.path, id: 'job');
@@ -266,7 +266,7 @@ void main() {
     final dir = await _tempDir();
     final video = await _video(dir);
     final settings = AiSubtitleSettings(
-      claudeApiKey: 'test-key',
+      apiKey: 'test-key',
       cacheDir: p.join(dir.path, 'cache'),
     );
     final job = OfflineJob.forAiSubtitle(video.path, id: 'job');
@@ -306,7 +306,7 @@ void main() {
     final job = OfflineJob.forAiSubtitle(video.path, id: 'job');
     await AiSubtitleProcessor(
       settings: AiSubtitleSettings(
-        claudeApiKey: 'test-key',
+        apiKey: 'test-key',
         cacheDir: cacheDir,
       ),
       transcriber: transcriber,
@@ -335,7 +335,7 @@ void main() {
     });
     final processor = AiSubtitleProcessor(
       settings: AiSubtitleSettings(
-        claudeApiKey: 'test-key',
+        apiKey: 'test-key',
         cacheDir: cacheDir,
       ),
       transcriber: _FakeTranscriber(_segments),
@@ -363,7 +363,7 @@ void main() {
     expect(File(wavPath!).existsSync(), isFalse);
   });
 
-  test('a missing Claude API key fails before rendering any media', () async {
+  test('a missing DeepSeek API key fails before rendering any media', () async {
     final dir = await _tempDir();
     final video = await _video(dir);
     final runner = _FakeRunner(_writeFakeWav);
@@ -405,7 +405,7 @@ void main() {
     final translator = _FakeTranslator();
     await AiSubtitleProcessor(
       settings: AiSubtitleSettings(
-        claudeApiKey: 'test-key',
+        apiKey: 'test-key',
         sourceLanguage: 'en',
         cacheDir: p.join(dir.path, 'cache'),
       ),
@@ -438,7 +438,7 @@ void main() {
     final transcriber = _FakeTranscriber(_segments);
     final processor = AiSubtitleProcessor(
       settings: AiSubtitleSettings(
-        claudeApiKey: 'test-key',
+        apiKey: 'test-key',
         cacheDir: p.join(dir.path, 'cache'),
       ),
       transcriber: transcriber,
@@ -508,8 +508,9 @@ void main() {
       whisperExecutable: r'C:\Tools\whisper.exe',
       whisperModel: 'large-v3',
       whisperFlavor: WhisperFlavor.fasterWhisper,
-      claudeApiKey: 'local-key',
-      claudeModel: ClaudeModels.sonnet,
+      apiKey: 'local-key',
+      model: DeepSeekModels.reasoner,
+      endpoint: 'http://127.0.0.1:1234/v1/chat/completions',
       sourceLanguage: 'en',
       cacheDir: r'C:\Cache',
     );
@@ -519,16 +520,29 @@ void main() {
     expect(restored!.whisperExecutable, r'C:\Tools\whisper.exe');
     expect(restored.whisperModel, 'large-v3');
     expect(restored.whisperFlavor, WhisperFlavor.fasterWhisper);
-    expect(restored.claudeApiKey, 'local-key');
-    expect(restored.claudeModel, ClaudeModels.sonnet);
+    expect(restored.apiKey, 'local-key');
+    expect(restored.model, DeepSeekModels.reasoner);
+    expect(restored.endpoint, 'http://127.0.0.1:1234/v1/chat/completions');
     expect(restored.sourceLanguage, 'en');
     expect(restored.cacheDir, r'C:\Cache');
 
     final defaults = AiSubtitleSettings.tryFromJson(const <String, Object?>{});
     expect(defaults!.whisperFlavor, WhisperFlavor.whisperCpp);
-    expect(defaults.claudeModel, ClaudeModels.haiku);
+    expect(defaults.model, DeepSeekModels.chat);
+    expect(defaults.endpoint, kDeepSeekEndpoint);
     expect(defaults.sourceLanguage, isNull);
     expect(defaults.cacheDir, isNull);
+  });
+
+  test('settings saved with Claude field names migrate to DeepSeek', () {
+    final restored = AiSubtitleSettings.tryFromJson(const {
+      'claudeApiKey': 'old-key',
+      'claudeModel': 'claude-haiku-5-5',
+    });
+    expect(restored, isNotNull);
+    expect(restored!.apiKey, 'old-key');
+    expect(restored.model, DeepSeekModels.chat);
+    expect(restored.endpoint, kDeepSeekEndpoint);
   });
 
   test('bilingual output paths sit next to the video', () {
@@ -537,3 +551,4 @@ void main() {
     expect(settings.srtPathFor(r'C:\videos\a.mkv'), endsWith('a.zh.srt'));
   });
 }
+

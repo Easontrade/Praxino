@@ -5,35 +5,37 @@ import 'package:http/http.dart' as http;
 import 'transcript.dart';
 import 'translator.dart';
 
-/// Model ids offered by the settings page. The id is a free-form setting, so a
-/// newer model can be typed in without touching code.
-class ClaudeModels {
-  ClaudeModels._();
+/// DeepSeek models offered by the settings page. The id stays a free-form
+/// setting, so a newer model can be typed in without touching code.
+class DeepSeekModels {
+  DeepSeekModels._();
 
-  static const haiku = 'claude-haiku-5-5';
-  static const sonnet = 'claude-sonnet-5-5';
+  static const chat = 'deepseek-chat';
+  static const reasoner = 'deepseek-reasoner';
 
-  static const known = [haiku, sonnet];
+  static const known = [chat, reasoner];
 }
 
-const String kClaudeApiVersion = '2023-06-01';
+/// OpenAI-compatible endpoint; the settings page exposes it so users can point
+/// at a proxy or another compatible service.
+const String kDeepSeekEndpoint = 'https://api.deepseek.com/v1/chat/completions';
 
-/// Claude Messages API translator.
+/// DeepSeek (OpenAI-compatible chat completions) translator.
 ///
 /// The client is injectable so tests can use `package:http/testing.dart` and
 /// never touch the network. Every failure is reported as a Chinese
 /// [TranslationException]; the API key is never echoed back.
-class ClaudeTranslator implements Translator {
-  ClaudeTranslator({
+class DeepSeekTranslator implements Translator {
+  DeepSeekTranslator({
     required this.apiKey,
-    this.model = ClaudeModels.haiku,
+    this.model = DeepSeekModels.chat,
     http.Client? client,
     Uri? endpoint,
-    this.maxTokens = 4096,
+    this.maxTokens = 8192,
     this.maxRetries = 1,
   })  : _client = client ?? http.Client(),
         _ownsClient = client == null,
-        _endpoint = endpoint ?? Uri.parse('https://api.anthropic.com/v1/messages');
+        _endpoint = endpoint ?? Uri.parse(kDeepSeekEndpoint);
 
   final String apiKey;
   @override
@@ -135,31 +137,32 @@ class ClaudeTranslator implements Translator {
     final key = apiKey.trim();
     if (key.isEmpty) {
       throw const TranslationException(
-          '未配置 Claude API Key，请在“设置 → AI 双语字幕”里填写');
+          '未配置 DeepSeek API Key，请在“设置 → AI 双语字幕”里填写');
     }
     final body = jsonEncode({
       'model': model,
-      'max_tokens': maxTokens ?? this.maxTokens,
-      'system': system,
       'messages': [
+        {'role': 'system', 'content': system},
         {'role': 'user', 'content': user},
       ],
+      'max_tokens': maxTokens ?? this.maxTokens,
+      'temperature': 0.3,
+      'stream': false,
     });
     final http.Response response;
     try {
       response = await _client.post(
         _endpoint,
         headers: {
-          'x-api-key': key,
-          'anthropic-version': kClaudeApiVersion,
+          'Authorization': 'Bearer $key',
           'content-type': 'application/json',
         },
         body: body,
       );
     } on http.ClientException catch (error) {
-      throw TranslationException('调用 Claude 失败：${error.message}');
+      throw TranslationException('调用 DeepSeek 失败：${error.message}');
     } on Exception catch (error) {
-      throw TranslationException('调用 Claude 失败：$error');
+      throw TranslationException('调用 DeepSeek 失败：$error');
     }
     if (response.statusCode != 200) throw _error(response);
     return _textOf(response.body);
@@ -168,17 +171,20 @@ class ClaudeTranslator implements Translator {
   TranslationException _error(http.Response response) {
     final code = response.statusCode;
     if (code == 401 || code == 403) {
-      return const TranslationException('Claude API Key 无效或没有权限（HTTP 401/403）');
+      return const TranslationException('DeepSeek API Key 无效或没有权限（HTTP 401/403）');
+    }
+    if (code == 402) {
+      return const TranslationException('DeepSeek 账户余额不足（HTTP 402）');
     }
     if (code == 429) {
-      return const TranslationException('Claude 请求太频繁或额度不足（HTTP 429），请稍后重试');
+      return const TranslationException('DeepSeek 请求太频繁或额度不足（HTTP 429），请稍后重试');
     }
     if (code >= 500) {
-      return TranslationException('Claude 服务暂时不可用（HTTP $code）');
+      return TranslationException('DeepSeek 服务暂时不可用（HTTP $code）');
     }
     final detail = _oneLine(response.body, 200);
     return TranslationException(
-      detail.isEmpty ? 'Claude 返回 HTTP $code' : 'Claude 返回 HTTP $code：$detail',
+      detail.isEmpty ? 'DeepSeek 返回 HTTP $code' : 'DeepSeek 返回 HTTP $code：$detail',
     );
   }
 
@@ -187,26 +193,33 @@ class ClaudeTranslator implements Translator {
     try {
       decoded = jsonDecode(body);
     } on FormatException {
-      throw const TranslationException('Claude 返回的内容不是 JSON');
+      throw const TranslationException('DeepSeek 返回的内容不是 JSON');
     }
     if (decoded is! Map) {
-      throw const TranslationException('Claude 返回的内容格式不对');
+      throw const TranslationException('DeepSeek 返回的内容格式不对');
     }
-    final content = decoded['content'];
-    if (content is List) {
-      final buffer = StringBuffer();
-      for (final block in content) {
-        if (block is Map && block['type'] == 'text' && block['text'] is String) {
-          buffer.write(block['text']);
+    final choices = decoded['choices'];
+    if (choices is List) {
+      for (final choice in choices) {
+        if (choice is! Map) continue;
+        final message = choice['message'];
+        if (message is! Map) continue;
+        final content = message['content'];
+        if (content is String && content.trim().isNotEmpty) {
+          return content;
+        }
+        if (content is List) {
+          final buffer = StringBuffer();
+          for (final part in content) {
+            if (part is Map && part['text'] is String) {
+              buffer.write(part['text']);
+            }
+          }
+          if (buffer.toString().trim().isNotEmpty) return buffer.toString();
         }
       }
-      final text = buffer.toString();
-      if (text.trim().isEmpty) {
-        throw const TranslationException('Claude 返回了空内容');
-      }
-      return text;
     }
-    throw const TranslationException('Claude 返回的内容里没有 text 字段');
+    throw const TranslationException('DeepSeek 返回的内容里没有可用的文本');
   }
 }
 

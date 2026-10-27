@@ -1,7 +1,7 @@
 /// Translation interfaces and the offline cost estimate.
 ///
 /// The pipeline never calls a provider directly: [Translator] is the seam, and
-/// the first implementation is `ClaudeTranslator`. Everything here is pure so
+/// the first implementation is `DeepSeekTranslator`. Everything here is pure so
 /// batching and costing are unit-testable without network access.
 library;
 
@@ -108,8 +108,9 @@ List<TranslationBatch> buildTranslationBatches(
 ///
 /// The numbers are deliberately approximate: they are computed from the
 /// transcript length (about four characters per token for Latin text, one per
-/// CJK character) plus per-batch prompt overhead, and priced with the public
-/// pay-as-you-go rates of the Haiku/Sonnet/Opus families.
+/// CJK character) plus per-batch prompt overhead, and priced with DeepSeek's
+/// public pay-as-you-go rates. Users can change the model and endpoint in
+/// settings, so the label is an estimate, not a quote.
 class AiSubtitleCostEstimate {
   const AiSubtitleCostEstimate({
     required this.model,
@@ -166,17 +167,15 @@ class _Pricing {
   final double outputPerMillion;
 }
 
-const _haikuPricing = _Pricing(1, 5);
-const _sonnetPricing = _Pricing(3, 15);
-const _opusPricing = _Pricing(15, 75);
+const _deepSeekChatPricing = _Pricing(0.27, 1.10);
+const _deepSeekReasonerPricing = _Pricing(0.55, 2.19);
 
-/// Unknown model names fall back to Haiku pricing, which under-estimates
-/// rather than surprising the user with a larger bill.
+/// Unknown model names fall back to deepseek-chat pricing, which
+/// under-estimates rather than surprising the user with a larger bill.
 _Pricing _pricingFor(String model) {
   final lower = model.toLowerCase();
-  if (lower.contains('sonnet')) return _sonnetPricing;
-  if (lower.contains('opus')) return _opusPricing;
-  return _haikuPricing;
+  if (lower.contains('reasoner')) return _deepSeekReasonerPricing;
+  return _deepSeekChatPricing;
 }
 
 /// 4 Latin characters or 1 CJK character per token, rounded up.

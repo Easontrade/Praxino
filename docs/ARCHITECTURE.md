@@ -249,8 +249,8 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
 - ⏳ 字幕时间偏移快捷键（`z`/`x` 是 mpv 默认键，需要在 UI 层补提示）。
 - 🟡 **AI 双语字幕**（M5-3，`lib/core/subtitles/ai/`）：大模型不接收音频，所以分两步——
   本地 Whisper 识别出带时间轴的原文（`transcriber.dart`，whisper.cpp 或 faster-whisper 命令行，
-  只传参数列表不拼 shell），再由 `Translator` 接口分段翻译（`claude_translator.dart`，默认 Haiku，
-  设置里可切 Sonnet）。
+  只传参数列表不拼 shell），再由 `Translator` 接口分段翻译（`deepseek_translator.dart`，默认
+  DeepSeek Chat，设置里可切 DeepSeek Reasoner，API 地址也可改）。
   - 数据模型：`TranscriptSegment {id,start,end,text}`；翻译结果按 `id` 对齐，模型漏掉的 id
     重试一次，仍失败就回填原文（`TranslationResult.fallbackIds`）。
   - 术语表：整集字幕先发一次给模型抽取人名/专有名词的固定译法，后续每个批次都带上。
@@ -299,3 +299,4 @@ mpv 的原生下一集/自动续集就能用。续播复用 `WatchHistory`，但
 2. README 写明：本软件是播放器和规则引擎，内容由用户自行订阅的第三方提供，与本项目无关。
 3. 第三方组件的许可证随资源放置（例如 `assets/shaders/anime4k/LICENSE`），并在 README 致谢。
 4. 收到 DMCA 或其它下架请求：删除对应的**示例或文档**即可；因为本来就不内置源，核心代码不受影响。
+

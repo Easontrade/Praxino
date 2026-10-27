@@ -392,21 +392,21 @@
 
 ### M5-3 AI 双语字幕（本地识别 + 大模型翻译） 🟡
 
-> 🟡 部分完成：核心管线、离线队列接入、设置页与确认对话框都已完成，46 条新单测覆盖
-> ASS 生成/转义/时间轴、Whisper JSON 解析、Claude 对齐/重试/回退/Key 缺失、缓存命中与费用确认。
-> 剩余：没有真实 Whisper 和 Claude 调用做端到端验证（本机未安装 Whisper，也不在测试里访问真实 API），
-> Claude 模型 id（`claude-haiku-5-5` / `claude-sonnet-5-5`）需要按账号可用模型核对；
+> 🟡 部分完成：核心管线、离线队列接入、设置页与确认对话框都已完成，47 条新单测覆盖
+> ASS 生成/转义/时间轴、Whisper JSON 解析、DeepSeek 对齐/重试/回退/Key 缺失、缓存命中与费用确认。
+> 剩余：没有真实 Whisper 和 DeepSeek 调用做端到端验证（本机未安装 Whisper，也不在测试里访问真实 API），
+> DeepSeek 模型 id（`deepseek-chat` / `deepseek-reasoner`）需要按账号可用模型核对；
 > 费用是粗略估算。暂停/取消发生在翻译中途时不会保留已翻译的批次，恢复会重新识别与翻译；
-> Batch 接口（费用减半、异步等待）尚未实现，当前只走同步 Messages API。
+> Batch 接口（费用减半、异步等待）尚未实现，当前只走同步 chat completions API。
 - **目标**：为没有字幕或只有外语字幕的视频生成中英双语字幕。主要面向本地文件、网盘和 Jellyfin 片源；
   站点源大多是硬字幕，不需要。
 - **两步走**：大模型不接收音频，所以先用**本地 Whisper** 做语音识别（免费），再用**大模型翻译**。
 - **文件**：`lib/core/subtitles/ai/transcript.dart`（片段模型）、`transcriber.dart`（Whisper 调用）、
-  `translator.dart`（翻译接口与费用估算）、`claude_translator.dart`、`bilingual_ass.dart`（生成双语 ASS/SRT）、
+  `translator.dart`（翻译接口与费用估算）、`deepseek_translator.dart`、`bilingual_ass.dart`（生成双语 ASS/SRT）、
   `ai_subtitle_job.dart`（缓存与接入离线队列）（均新建）、
   `lib/core/enhance/offline/offline_job.dart`（任务类型）、`lib/core/settings/settings_store.dart`、
   `lib/ui/settings_page.dart`、`lib/ui/offline_tasks_page.dart`、
-  `test/bilingual_ass_test.dart`、`test/ai_transcriber_test.dart`、`test/claude_translator_test.dart`、
+  `test/bilingual_ass_test.dart`、`test/ai_transcriber_test.dart`、`test/deepseek_translator_test.dart`、
   `test/ai_subtitle_job_test.dart`（新建）
 - **做法**：
   1. **任务类型**：在 M5-2 的离线队列里加 `AiSubtitleJob`，可排队、取消、失败重试；同一文件
@@ -420,9 +420,10 @@
      （用 structured outputs，按 `id` 对齐，不能合并或拆分句子），对齐失败的段落重试一次，仍失败则保留原文。
   6. **输出**：生成双语 ASS 存到视频旁 `<视频名>.zh-en.ass`：中文在上、字号大，原文在下、字号小；
      另存纯中文 SRT 方便别的播放器。播放时自动加载（`sub-auto=fuzzy` 已能匹配）。
-  7. **模型与费用**：`Translator` 是接口，首个实现用 Claude API（默认 Claude Haiku 5.5，设置里可切 Sonnet 5.5；
-     不急的任务可选 Batch 接口，费用减半但要等待）；API Key 由用户在设置页填写，只存本机，不进仓库和日志。
-     任务开始前按字数估算 token 和费用并显示给用户确认；参考：45 分钟一集 Haiku 约 $0.01、Sonnet 约 $0.2。
+  7. **模型与费用**：`Translator` 是接口，首个实现用 DeepSeek 的 OpenAI 兼容接口（默认 DeepSeek Chat，
+     设置里可切 DeepSeek Reasoner，也可改 API 地址）；Batch 接口暂未实现。API Key 由用户在设置页填写，
+     只存本机，不进仓库和日志。
+     任务开始前按字数估算 token 和费用并显示给用户确认；参考：45 分钟一集 Chat 约 $0.01、Reasoner 约 $0.02。
 - **验收**：
   - 单测：ASS 生成（时间轴、转义、双语样式）、翻译结果按 `id` 对齐、对齐失败重试与回退、
     缓存命中不再调用 API、Key 缺失时给出可读提示（全部用 `MockClient`，不访问真实 API）。
@@ -498,3 +499,4 @@
   外挂与在线字幕、弹幕显示、在线搜索与 3 个私有源实播、设置页、离线任务、安装/卸载与文件关联。
   用户发现的问题记成 GitHub issue，再拆成任务卡。
 - **验收**：清单逐项有结果（通过/问题链接），没有"未验证"。
+

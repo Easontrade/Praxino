@@ -20,7 +20,7 @@
 | 离线超分 / 补帧（Real-ESRGAN、RIFE ncnn） | ✅ |
 | WebDAV / OpenList | ✅（真实服务器需自行验证） |
 | Jellyfin / Emby 媒体库 | 🚧（海报墙待补） |
-| AI 双语字幕（本地 Whisper + Claude） | 🚧（管线完成，真实模型与 API 待验证） |
+| AI 双语字幕（本地 Whisper + DeepSeek） | 🚧（管线完成，真实模型与 API 待验证） |
 
 ## 快捷键
 
@@ -55,3 +55,4 @@ flutter run -d windows
 ## 许可证
 
 [GPL-3.0](LICENSE)。第三方资源的许可证放在各自的目录里。
+

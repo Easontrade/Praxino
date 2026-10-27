@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:praxino/core/settings/settings_store.dart';
-import 'package:praxino/core/subtitles/ai/claude_translator.dart';
+import 'package:praxino/core/subtitles/ai/deepseek_translator.dart';
 import 'package:praxino/core/subtitles/ai/transcriber.dart';
 import 'package:praxino/ui/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,7 +30,7 @@ void main() {
     await tester.tap(find.text('AI 双语字幕'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Claude API Key'), findsOneWidget);
+    expect(find.text('DeepSeek API Key'), findsOneWidget);
 
     await tester.enterText(
       find.widgetWithText(TextField, 'Whisper 可执行文件'),
@@ -41,7 +41,7 @@ void main() {
       r'C:\Tools\whisper\ggml-large-v3-turbo.bin',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Claude API Key'),
+      find.widgetWithText(TextField, 'DeepSeek API Key'),
       'local-only-key',
     );
 
@@ -57,8 +57,10 @@ void main() {
     expect(saved.whisperExecutable, r'C:\Tools\whisper\whisper-cli.exe');
     expect(saved.whisperModel, r'C:\Tools\whisper\ggml-large-v3-turbo.bin');
     expect(saved.whisperFlavor, WhisperFlavor.fasterWhisper);
-    expect(saved.claudeApiKey, 'local-only-key');
-    expect(saved.claudeModel, ClaudeModels.haiku);
+    expect(saved.apiKey, 'local-only-key');
+    expect(saved.model, DeepSeekModels.chat);
+    expect(saved.endpoint, kDeepSeekEndpoint);
     expect(find.text('已保存 AI 双语字幕设置'), findsOneWidget);
   });
 }
+

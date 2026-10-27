@@ -7,11 +7,11 @@
 | 检查 | 结果 |
 | --- | --- |
 | `flutter analyze` | 0 issue |
-| `flutter test` | 203 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 270 全通过 |
+| `flutter test` | 203 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 271 全通过 |
 | `flutter build windows --debug` | 成功 |
 | `flutter build windows --release` | 成功 |
 | `flutter test integration_test -d windows` | 本地隐藏桌面 6/6 通过（打开文件、增强预设、设置凭据、订阅导入、在线搜索、离线任务） |
-| GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 270 个单元/Widget 测试 + 6 个集成测试，全通过 |
+| GitHub Actions CI | 待推送验证；本地带 QuickJS DLL 跑 271 个单元/Widget 测试 + 6 个集成测试，全通过 |
 | Inno Setup 安装包编译 | 成功；最终 SHA256 `ed5ad5c4e128807d9f069a838e952e42e2ccf1baf5a321716c8b63c83e8e705d` |
 | 安装包 ANGLE Vulkan 排除 | 已验证：安装目录无 `vulkan-1.dll` / `vk_swiftshader.dll` |
 
@@ -29,8 +29,8 @@
 | WebDAV 续播 / 下一集 / 同目录字幕 | 已验证（Mock） | 续播 key 去掉凭据和查询串（单测）；同目录视频按自然顺序进播放列表，下一集走 mpv 原生列表；字幕按 `<视频>.<语言>.ass` 匹配并中文优先；真实 OpenList 未验证 |
 | 增强包一键安装 | 已验证（Mock） | 多文件 manifest、SHA256、zip 解压、`..` 路径拒绝、Python/VapourSynth 路径自动发现；真实大文件包未下载验证 |
 | 界面集成测试 | 已验证（本地隐藏桌面） | `integration_test/app_test.dart` 6/6：首页打开文件、增强菜单持久化、设置页凭据、订阅 JSON 导入、注入源搜索选集、离线任务暂停；CI 待推送验证 |
-| AI 双语字幕管线 | 已验证（Mock） | Whisper JSON 解析、Claude 对齐/重试/回退、术语表、40 句分批、ASS/SRT 生成、缓存命中不重复计费、费用确认、Key 缺失提示；真实 Whisper/Claude 未验证 |
-| AI 字幕设置与任务类型 | 已验证（Widget/单测） | 设置页保存 Whisper/Claude 配置；离线任务页区分超分与双语字幕、暂停排队任务；旧任务 JSON 无 `type` 时回退为超分 |
+| AI 双语字幕管线 | 已验证（Mock） | Whisper JSON 解析、DeepSeek 对齐/重试/回退、术语表、40 句分批、ASS/SRT 生成、缓存命中不重复计费、费用确认、Key 缺失提示；真实 Whisper/DeepSeek 未验证 |
+| AI 字幕设置与任务类型 | 已验证（Widget/单测） | 设置页保存 Whisper/DeepSeek 配置；离线任务页区分超分与双语字幕、暂停排队任务；旧任务 JSON 无 `type` 时回退为超分 |
 | 单源搜索 | 已验证 | 规则搜索返回结果（仅元数据，不播放） |
 | Stremio adapter | 已验证（Mock） | manifest / catalog / meta / stream 解析 |
 | QuickJS 沙箱 | 已验证 | 纯 JS、fetch、超时、内存上限、无文件/进程全局 |
@@ -73,3 +73,4 @@ QuickJS 测试需要先构建 Windows 插件 DLL：
 $env:FLUTTER_QJS_NEXT_LIBRARY = (Resolve-Path "build\windows\x64\runner\Release\flutter_qjs_next_plugin.dll")
 flutter test
 ```
+

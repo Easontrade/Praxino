@@ -117,7 +117,7 @@ class _OfflineTasksPageState extends State<OfflineTasksPage> {
               const SizedBox(height: 8),
               Text('预计费用约 ${estimate.usdLabel}（粗略估算，实际按 API 计费）。'),
               const SizedBox(height: 8),
-              const Text('继续会调用 Claude API 并产生费用；取消则不翻译，'
+              const Text('继续会调用 DeepSeek API 并产生费用；取消则不翻译，'
                   '也不会写入字幕文件。'),
             ],
           ),

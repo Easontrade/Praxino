@@ -151,6 +151,10 @@
 - **做法**：拆成五步，各自提交：
   1. 先验证：用当前 libmpv 试 `vf=vapoursynth`（或看 `mpv --list-filters` 里有没有 vapoursynth），
      确认是否真的不支持；如果支持，直接跳到第 3 步。
+     **当前卡点**：手上带 VapourSynth 的 libmpv 是 client API 2.6，media_kit 1.2.6 只兼容 2.1，加载即退出。
+     client API 版本跟随 mpv 版本，**mpv 0.36 对应 2.1**：先找 shinchiro 基于 mpv 0.36 编译、
+     带 VapourSynth 的 `libmpv-2.dll`（约 2023 年下半年的构建），用 `tool/check_vs_pack.ps1` 验证
+     API 版本和 `vapoursynth` 滤镜；都找不到再评估 fork media_kit。
   2. 增强包下载器和版本校验（SHA256）：清单包含 URL、版本、哈希；下载到
      `%APPDATA%/Praxino/enhance-pack/`；校验失败删除并报错。
   3. 在**创建任何 Player 之前**用 `MediaKit.ensureInitialized(libmpv: '<包>/libmpv-2.dll')` 加载带
@@ -254,6 +258,34 @@
   实现 `ac=list`、`ac=detail`，解析 `vod_play_url` 的 `$` / `#` / `$$$` 分隔规则。
 - **验收**：fixture 覆盖分隔规则、空字段、多条线路；遇到 `type: 3` 明确拒绝并说明原因。
 
+### M3-7 WebDAV / OpenList 源 ⏳
+- **目标**：浏览并串流播放用户自己网盘里的视频（夸克、百度、阿里云盘等经 OpenList/Alist 挂成 WebDAV，
+  或任意 WebDAV 服务）。优先级高于继续增加站点类源。
+- **文件**：`lib/core/sources/webdav/webdav_client.dart`、`webdav_adapter.dart`（新建）、
+  `lib/ui/webdav_browser_page.dart`（新建）、`lib/core/settings/settings_store.dart`、
+  `test/webdav_client_test.dart`（新建，PROPFIND 响应用 fixture）
+- **做法**：
+  1. 自己实现最小 WebDAV 客户端：`PROPFIND Depth: 1` 列目录（解析 multistatus XML），
+     Basic 认证；不引入大型依赖。
+  2. 目录页按自然排序显示文件夹和视频；点视频时把**同目录视频**组成播放列表（复用 `naturalCompare`）。
+  3. 播放时把认证放进 mpv 请求头（`PlayableStream.headers`），**不要**把用户名密码拼进 URL，日志里也不能出现。
+  4. 同目录的 `.ass/.srt` 自动作为外挂字幕；续播以"服务器地址 + 路径"为 key 复用 `WatchHistory`。
+  5. 凭据存本机设置（同 OpenSubtitles 的存法），设置页可增删多个服务器。
+- **验收**：fixture 覆盖目录解析、中文/空格路径编码、401；用户本机连 OpenList 能列目录并播放、
+  下一集和续播生效；日志和崩溃信息里搜不到密码。
+
+### M3-8 Jellyfin / Emby 客户端 ⏳
+- **目标**：连接用户自建的 Jellyfin/Emby 媒体服务器，显示媒体库和海报墙，播放并同步观看进度。
+- **文件**：`lib/core/sources/jellyfin/jellyfin_client.dart`、`jellyfin_adapter.dart`（新建）、
+  `lib/ui/library_page.dart`（新建）、`test/jellyfin_client_test.dart`（新建）
+- **做法**：
+  1. 用户名密码登录（`/Users/AuthenticateByName`）拿 token，只保存 token；Emby 与 Jellyfin 共用一套实现，
+     差异处用开关处理。
+  2. 媒体库 → 剧集/季/集 → 播放；优先 **Direct Play**（原文件直出，才能发挥超分），不行再用服务器转码。
+  3. 播放进度定时上报（`/Sessions/Playing/Progress`），打开时从服务器进度续播。
+  4. 服务器上的外挂字幕按语言自动挂载，中文优先。
+- **验收**：`MockClient` 覆盖登录、分页、进度上报、token 失效；用户本机连自己的服务器能播放并同步进度。
+
 ---
 
 ## M4 弹幕与更多源
@@ -337,6 +369,35 @@
 - **验收**：单测覆盖队列状态机和断点；用 1 分钟片段做端到端处理；
   失败任务能重试且不破坏原文件。
 
+### M5-3 AI 双语字幕（本地识别 + 大模型翻译） ⏳
+- **目标**：为没有字幕或只有外语字幕的视频生成中英双语字幕。主要面向本地文件、网盘和 Jellyfin 片源；
+  站点源大多是硬字幕，不需要。
+- **两步走**：大模型不接收音频，所以先用**本地 Whisper** 做语音识别（免费），再用**大模型翻译**。
+- **文件**：`lib/core/subtitles/ai/transcriber.dart`（Whisper 调用）、`translator.dart`（翻译接口）、
+  `claude_translator.dart`、`bilingual_ass.dart`（生成双语 ASS）、`ai_subtitle_job.dart`（接入离线队列）（均新建）、
+  `lib/ui/settings_page.dart`、`lib/ui/offline_tasks_page.dart`、
+  `test/bilingual_ass_test.dart`、`test/claude_translator_test.dart`、`test/ai_subtitle_job_test.dart`（新建）
+- **做法**：
+  1. **任务类型**：在 M5-2 的离线队列里加 `AiSubtitleJob`，可排队、取消、失败重试；同一文件
+     （以路径 + 大小 + 修改时间为 key）已生成过就直接复用，不重复计费。
+  2. **提取音频**：ffmpeg 提取单声道 16kHz WAV 到临时目录，任务结束删除。
+  3. **识别**：调用本地 `faster-whisper`（推荐 `large-v3-turbo`，GPU）或 `whisper.cpp` 的命令行，
+     工具路径在设置页配置（同离线 GPU 工具）；输出带时间轴的 SRT；源语言可自动检测或手动指定。
+  4. **术语表**：先把全文发给模型一次，提取人名、地名、专有名词及固定译法（JSON），后续每段都带上，
+     保证整集译名一致。
+  5. **分段翻译**：每段约 40～60 句，附前后各 5 句作为上下文；要求按句号返回结构化结果
+     （用 structured outputs，按 `id` 对齐，不能合并或拆分句子），对齐失败的段落重试一次，仍失败则保留原文。
+  6. **输出**：生成双语 ASS 存到视频旁 `<视频名>.zh-en.ass`：中文在上、字号大，原文在下、字号小；
+     另存纯中文 SRT 方便别的播放器。播放时自动加载（`sub-auto=fuzzy` 已能匹配）。
+  7. **模型与费用**：`Translator` 是接口，首个实现用 Claude API（默认 Claude Haiku 5.5，设置里可切 Sonnet 5.5；
+     不急的任务可选 Batch 接口，费用减半但要等待）；API Key 由用户在设置页填写，只存本机，不进仓库和日志。
+     任务开始前按字数估算 token 和费用并显示给用户确认；参考：45 分钟一集 Haiku 约 $0.01、Sonnet 约 $0.2。
+- **验收**：
+  - 单测：ASS 生成（时间轴、转义、双语样式）、翻译结果按 `id` 对齐、对齐失败重试与回退、
+    缓存命中不再调用 API、Key 缺失时给出可读提示（全部用 `MockClient`，不访问真实 API）。
+  - 手动（用户执行）：对一段 5 分钟英文片段跑通全流程，字幕时间轴准确、人名前后一致，
+    实际花费与预估在同一数量级。
+
 ---
 
 ## M6 发布
@@ -378,3 +439,27 @@
   触控播放控件；竖屏/横屏布局；不引入只在桌面可用的依赖（保持 core 接口不变）。
 - **验收**：Android 模拟器/真机能播放 1080p 本地视频；`flutter analyze` / `flutter test` 通过；
   APK 能构建。
+
+---
+
+## M7 质量与验收
+
+### M7-1 界面集成测试（integration_test） ⏳
+- **目标**：用 Flutter 官方 `integration_test` 在应用内部驱动界面，替代隐藏桌面 + 模拟点击的方案。
+- **文件**：`pubspec.yaml`（dev 依赖 `integration_test`）、`integration_test/*.dart`（新建）、
+  `.github/workflows/ci.yml`
+- **做法**：
+  1. 覆盖主要流程：首页打开文件 → 播放页出现；增强菜单切换预设并持久化；设置页填写/保存凭据；
+     订阅页添加 fixture 订阅 → 在线搜索出结果 → 选集；离线任务页排队/取消。
+  2. 网络全部走注入的 `MockClient` / 本地 fixture；播放用仓库内一段几秒的自制测试视频
+     （自己用 ffmpeg 生成色条，不用任何有版权的素材）。
+  3. CI 上用 `flutter test integration_test -d windows` 运行（在 CI 机器上，不在用户桌面上）。
+  4. 隐藏桌面的 `tool/hidden_*.ps1` 只保留做单实例/安装冒烟，不再扩展点击注入。
+- **验收**：CI 上集成测试全绿；本地不弹窗即可运行（`--hidden` 仅 debug 生效）。
+
+### M7-2 用户亲测清单 ⏳
+- **目标**：目前所有界面验证都在隐藏窗口里完成，需要用户亲眼确认一次。
+- **做法**：在 `docs/VERIFICATION.md` 里列一份勾选清单交给用户：本地播放/续播/选集、快捷键、增强菜单与 A/B 对比、
+  外挂与在线字幕、弹幕显示、在线搜索与 3 个私有源实播、设置页、离线任务、安装/卸载与文件关联。
+  用户发现的问题记成 GitHub issue，再拆成任务卡。
+- **验收**：清单逐项有结果（通过/问题链接），没有"未验证"。

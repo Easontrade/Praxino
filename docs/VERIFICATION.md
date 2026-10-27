@@ -7,7 +7,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `flutter analyze` | 0 issue |
-| `flutter test` | 192 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 198 全通过 |
+| `flutter test` | 196 通过，6 个 QuickJS 测试在缺少插件 DLL 时跳过；指定 Release DLL 后 202 全通过 |
 | `flutter build windows --debug` | 成功 |
 | `flutter build windows --release` | 成功 |
 | GitHub Actions CI | 成功：build release 后带 QuickJS DLL 跑 198 个测试，无跳过 |
@@ -24,6 +24,7 @@
 | 文件关联 | 已验证 | `.mp4` 安装后指向 `Praxino.Video`，卸载后恢复原值 |
 | Kazumi 规则库 | 已验证 | 本地种子 16 条规则全部解析为 adapter |
 | TVBox 本地配置 | 已验证 | 101 个去重地址导入成功 13 个；本地共 84 个可用站点 |
+| WebDAV / OpenList | 已验证（Mock） | PROPFIND、中文/空格路径、401、同目录播放列表、Basic 认证头 |
 | 单源搜索 | 已验证 | 规则搜索返回结果（仅元数据，不播放） |
 | Stremio adapter | 已验证（Mock） | manifest / catalog / meta / stream 解析 |
 | QuickJS 沙箱 | 已验证 | 纯 JS、fetch、超时、内存上限、无文件/进程全局 |

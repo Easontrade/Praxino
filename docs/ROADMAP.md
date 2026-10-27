@@ -173,7 +173,7 @@
        vs-rife 需要数 GB 的 CUDA 版 PyTorch。RIFE-ncnn-Vulkan 是 API 4、单个 5MB DLL、任意显卡可用。
        帧率选择：固定 60fps 需要每 5 帧推理 4 帧，RTX 5080 上 1080p 只有约 40fps（GPU 100%）；
        2 倍只需每 2 帧推理 1 帧，约 60fps 吞吐，实时有余量。
-     - 补帧滤镜与 L1 的 `hqdn3d` 已合并进同一条 `vf` 链。
+     - 降噪改为内置 GPU shader（`assets/shaders/denoise.glsl`）；`vf` 只保留 VapourSynth。
      - 应用目录**不能**带 media_kit ANGLE 包里的开发版 `vulkan-1.dll` / `vk_swiftshader.dll`
        （已在 `windows/CMakeLists.txt` 排除），否则 RIFE 一初始化就在 NVIDIA 驱动里崩溃，原因见 ARCHITECTURE §5.2。
   5. ✅ 显示 `frame-drop-count`，掉帧时提示降档。

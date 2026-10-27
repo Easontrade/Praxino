@@ -38,11 +38,15 @@ void main() {
       expect(UpscalePreset.anime4kFast.shaderFamily, 'anime4k');
     });
 
-    test('denoise switches to copy-back decoding', () {
-      final props = const EnhanceSettings(denoise: true)
-          .toMpvProperties(shaderDir: '/s', listSeparator: ';');
-      expect(props['hwdec'], 'auto-copy');
-      expect(props['vf'], startsWith('lavfi='));
+    test('denoise adds the GPU shader and keeps GPU decoding', () {
+      final props = const EnhanceSettings(denoise: true).toMpvProperties(
+        shaderDir: '/s',
+        listSeparator: ';',
+        denoiseShader: '/s/denoise.glsl',
+      );
+      expect(props['glsl-shaders'], '/s/denoise.glsl');
+      expect(props['vf'], '');
+      expect(props['hwdec'], 'auto-safe');
     });
 
     test('round-trips through json', () {

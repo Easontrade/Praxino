@@ -39,17 +39,13 @@ String? interpolationScriptFor(
   return p.join(templateDir, name);
 }
 
-/// Builds mpv's `vf` chain. Denoise and interpolation cannot each write `vf`
-/// separately, so they are composed here in one place.
+/// Builds mpv's `vf` chain. Denoise now runs as a GPU shader (the bundled
+/// libmpv has no hqdn3d), so only VapourSynth contributes here.
 String buildVideoFilterChain({
-  required bool denoise,
   required InterpolationMode interpolation,
   String? vapoursynthScript,
 }) {
   final filters = <String>[];
-  if (denoise) {
-    filters.add('lavfi=[hqdn3d=1.2:1.0:6:6]');
-  }
   if (interpolation != InterpolationMode.off &&
       vapoursynthScript != null &&
       vapoursynthScript.isNotEmpty) {

@@ -3,22 +3,27 @@ import 'package:praxino/core/enhance/enhance_settings.dart';
 import 'package:praxino/core/enhance/interpolation.dart';
 
 void main() {
-  test('composes denoise before vapoursynth in one vf chain', () {
+  test('composes the vapoursynth filter', () {
     final vf = buildVideoFilterChain(
-      denoise: true,
       interpolation: InterpolationMode.rife,
       vapoursynthScript: 'C:/Praxino/cache/rife.vpy',
     );
-    expect(
-      vf,
-      'lavfi=[hqdn3d=1.2:1.0:6:6],vapoursynth=C:/Praxino/cache/rife.vpy',
+    expect(vf, 'vapoursynth=C:/Praxino/cache/rife.vpy');
+  });
+
+  test('denoise no longer writes a lavfi filter', () {
+    final props = const EnhanceSettings(denoise: true).toMpvProperties(
+      shaderDir: '/s',
+      listSeparator: ';',
+      denoiseShader: '/s/denoise.glsl',
     );
+    expect(props['vf'], '');
+    expect(props['glsl-shaders'], '/s/denoise.glsl');
   });
 
   test('interpolation without a script contributes nothing', () {
     expect(
       buildVideoFilterChain(
-        denoise: false,
         interpolation: InterpolationMode.rife,
       ),
       '',
@@ -34,9 +39,10 @@ void main() {
       shaderDir: '/s',
       listSeparator: ';',
       vapoursynthScript: '/cache/mvtools.vpy',
+      denoiseShader: '/s/denoise.glsl',
     );
-    expect(props['vf'], contains('hqdn3d'));
-    expect(props['vf'], contains('vapoursynth=/cache/mvtools.vpy'));
+    expect(props['vf'], 'vapoursynth=/cache/mvtools.vpy');
+    expect(props['glsl-shaders'], startsWith('/s/denoise.glsl'));
     expect(props['hwdec'], 'auto-copy');
   });
 

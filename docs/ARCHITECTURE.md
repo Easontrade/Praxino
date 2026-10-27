@@ -113,7 +113,7 @@ UI ──► PraxinoPlayer ──► media_kit Player ──► libmpv
 |---|---|
 | 超分预设 | `glsl-shaders` = 着色器绝对路径用 `;` 连接（运行时目录 `<exe>/data/flutter_assets/assets/shaders/anime4k`） |
 | 去色带 | `deband=yes` + iterations 2 / threshold 40 / grain 16 |
-| 降噪 | `vf=lavfi=[hqdn3d=1.2:1.0:6:6]`，同时 `hwdec=auto-copy`（lavfi 需要帧在内存里） |
+| 降噪 | 在 `glsl-shaders` 最前面加内置 `assets/shaders/denoise.glsl`（GPU 3×3 加权降噪）；不改 `vf`，也不需要 copy-back |
 
 三档预设都按官方 Mode A 的结构排列（Clamp → Restore → Upscale → AutoDownscalePre x2/x4 → Upscale）；
 第一段用 CNN-S / M / VL，第二段分别用 S / S / M 以降低开销。设置持久化，
@@ -152,7 +152,7 @@ mpv 用 `vf=vapoursynth=<script.vpy>` 跑 VapourSynth 脚本。问题：据目�
    [`ENHANCE_PACK.md`](ENHANCE_PACK.md)。
 3. `EnhanceSettings.interpolation`：`off / mvtools(轻量,CPU) / rife(GPU)`。每种模式默认用
    `assets/vapoursynth/` 里的内置模板（`interpolationScriptFor`），设置里的自定义 `.vpy` 只作覆盖。
-   生成的 vf 要和 L1 的 hqdn3d 合并成一条链（见本节开头），不能直接覆盖 `vf`。
+   生成的 vf 只包含 VapourSynth；降噪已经改成 GPU shader，不再和 L1 的 vf 合并。
    mvtools 模板输出约 60fps；RIFE 模板输出**2 倍帧率**——固定 60fps 需要每 5 帧推理 4 帧，
    RTX 5080 上 1080p 只有约 40fps 吞吐（GPU 100%），2 倍约 60fps，实时有余量。
 4. **应用目录里不能有 media_kit ANGLE 包附带的开发版 `vulkan-1.dll` / `vk_swiftshader.dll`。**

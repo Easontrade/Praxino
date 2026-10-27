@@ -163,6 +163,9 @@ class PraxinoPlayer {
       shaderDir: shaderDirectoryFor(settings.upscale),
       listSeparator: Platform.isWindows ? ';' : ':',
       vapoursynthScript: script,
+      denoiseShader: settings.denoise
+          ? p.join(shaderRoot, 'denoise.glsl').replaceAll('\\', '/')
+          : null,
     );
     for (final e in props.entries) {
       await _native.setProperty(e.key, e.value);

@@ -1,7 +1,7 @@
 /// Real-time picture enhancement, applied through mpv properties.
 ///
-/// Everything here runs inside the mpv render pipeline (GLSL hooks and lavfi
-/// filters), so it works on any GPU without CUDA. Heavier, offline-quality
+/// Everything here runs inside the mpv render pipeline (GLSL hooks and
+/// VapourSynth), so it works on any GPU without CUDA. Heavier, offline-quality
 /// processing (Real-ESRGAN, RIFE) is a separate pipeline; see docs/ROADMAP.md.
 library;
 
@@ -75,9 +75,8 @@ class EnhanceSettings {
   /// Removes colour banding in flat areas of low-bitrate encodes.
   final bool deband;
 
-  /// Light spatio-temporal denoise (hqdn3d) against mosquito noise and blocking.
-  /// Needs frames in system memory, so it switches hardware decoding to a
-  /// copy-back mode.
+  /// Light GPU denoise against mosquito noise and blocking. Runs as a shader
+  /// in the render pipeline, so hardware decoding stays enabled.
   final bool denoise;
 
   /// Frame interpolation backend; it only takes effect when a VapourSynth
@@ -112,28 +111,32 @@ class EnhanceSettings {
   ///
   /// [shaderDir] is the directory holding the Anime4K shader files,
   /// [listSeparator] is mpv's path-list separator (`;` on Windows, `:` elsewhere)
-  /// and [vapoursynthScript] is the `.vpy` path when interpolation is enabled.
+  /// [vapoursynthScript] is the `.vpy` path when interpolation is enabled and
+  /// [denoiseShader] is the bundled GPU denoise shader.
   Map<String, String> toMpvProperties({
     required String shaderDir,
     required String listSeparator,
     String? vapoursynthScript,
+    String? denoiseShader,
   }) {
     final filters = buildVideoFilterChain(
-      denoise: denoise,
       interpolation: interpolation,
       vapoursynthScript: vapoursynthScript,
     );
+    final shaders = [
+      for (final name in upscale.shaders) '$shaderDir/$name',
+    ];
+    if (denoise && denoiseShader != null && denoiseShader.isNotEmpty) {
+      shaders.insert(0, denoiseShader);
+    }
     return {
-      'glsl-shaders': upscale.shaders
-          .map((name) => '$shaderDir/$name')
-          .join(listSeparator),
+      'glsl-shaders': shaders.join(listSeparator),
       'deband': deband ? 'yes' : 'no',
       if (deband) 'deband-iterations': '2',
       if (deband) 'deband-threshold': '40',
       if (deband) 'deband-grain': '16',
       'vf': filters,
-      'hwdec':
-          denoise || filters.contains('vapoursynth=') ? 'auto-copy' : 'auto-safe',
+      'hwdec': filters.contains('vapoursynth=') ? 'auto-copy' : 'auto-safe',
     };
   }
 

@@ -39,6 +39,7 @@
 | AI 字幕设置与任务类型 | 已验证（Widget/单测） | 设置页保存 Whisper/DeepSeek 配置；离线任务页区分超分与双语字幕、暂停排队任务；旧任务 JSON 无 `type` 时回退为超分 |
 | 内置 libmpv 的降噪 | 已验证 | 内置 libmpv 没有 `hqdn3d`，旧的 `vf=lavfi` 会让视频输出失败并黑屏；改成 `denoise.glsl` GPU shader 后，在“Anime4K 高质量 + 去色带 + 降噪”的持久化设置下，1080p 23.976 正常播放（`[stats] height=1080 fps=23.976`，进度写入 watch history） |
 | 源排行 | 已验证（Mock/Widget + 真实源） | 行状态只有能看/不能看，能看必须是探测通过且播放列表能解析的直链；标题分低于 0.5 的命中丢弃；同一个流只留一行；打不开的源折叠在下面；`tool/diagnose_sources.dart` 可对真实源复现：2026-10-28 用 99 个源搜「美国精神病人」，35 个源有命中、2 条唯一直链通过（爱坤、火狐秒播），mpv `--frames=1` 对爱坤那条实际解码成功（exit 0） |
+| 反爬源浏览器回退 | 已验证（本机隐藏桌面） | 14 个源的 TLS 握手被拒、7 个返回 HTML 验证页，普通 HTTP 客户端过不去；改成用内置 WebView2 重发请求。`integration_test/browser_fetch_test.dart` 在独立桌面上跑通（WebView2 加载 JSON 接口并读回 body，约 3–4 秒）。GitHub Actions 没有交互桌面，WebView2 起不来，所以 CI 只跑 `app_test.dart`，本地用 `tool/hidden_integration.ps1` 复现 |
 | 源站搜索契约审计 | 已验证（`tool/audit_api.dart`） | 84 个本地 TVBox 源搜「美国精神病人」：36 个 `ac=list` 直接命中，2 个只有 `ac=detail` 命中（已改为自动回退），10 个 API 正常但 0 结果，8 个 API 声明不支持搜索，2 个禁止关键词搜索，25 个被反爬挡住（14 个 TLS 握手被拒、7 个返回 HTML 验证页、2 个连接被中断、2 个 4xx）——后一类用普通 HTTP 客户端过不去，浏览器能过 |
 | 单源搜索 | 已验证 | 规则搜索返回结果（仅元数据，不播放） |
 | Stremio adapter | 已验证（Mock） | manifest / catalog / meta / stream 解析 |

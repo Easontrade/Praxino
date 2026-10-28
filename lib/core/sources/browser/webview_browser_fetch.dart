@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:webview_windows/webview_windows.dart';
 
@@ -8,20 +9,31 @@ import 'browser_fetch.dart';
 ///
 /// One controller is reused for every request and requests are serialised: a
 /// WebView can only show one page at a time, and creating a controller per
-/// source would spawn dozens of browser processes. The body is read from
-/// `document.body.innerText`, which is also what a JSON response renders as.
+/// source would spawn dozens of browser processes.
+///
+/// Many blocked endpoints do not reject the request itself, they answer with an
+/// anti-bot interstitial and expect the *next* request to carry the cookies the
+/// page just set. So the flow is: open the origin (which lets the challenge run
+/// and solve), then call the API from inside that page with `fetch`, which
+/// reuses the browser's cookies and TLS session. Jumping straight to the API
+/// URL is kept as a fallback.
 class WebViewBrowserFetch implements BrowserFetch {
   WebViewBrowserFetch({
     WebviewController? controller,
-    this.timeout = const Duration(seconds: 6),
+    this.timeout = const Duration(seconds: 8),
+    this.settle = const Duration(milliseconds: 1200),
   }) : controller = controller ?? WebviewController();
 
   final WebviewController controller;
   final Duration timeout;
 
+  /// Time given to a challenge page to finish before the API is called.
+  final Duration settle;
+
   Future<void> _tail = Future<void>.value();
   int _requestCount = 0;
   int _budget = 12;
+  String? _origin;
 
   /// How many browser requests were issued; used to cap a single search.
   int get requestCount => _requestCount;
@@ -47,29 +59,83 @@ class WebViewBrowserFetch implements BrowserFetch {
       if (!controller.value.isInitialized) {
         await controller.initialize();
       }
-      final loaded = Completer<void>();
-      final subscription = controller.loadingState.listen((state) {
-        if (state == LoadingState.navigationCompleted && !loaded.isCompleted) {
-          loaded.complete();
-        }
-      });
-      try {
-        await controller.loadUrl(url);
-        await loaded.future.timeout(timeout);
-        final deadline = DateTime.now().add(timeout);
-        while (true) {
-          final text = await _bodyText();
-          if (looksLikePayload(text)) return text;
-          // A challenge page keeps rewriting itself; give it until the budget
-          // runs out before handing back whatever is on screen.
-          if (DateTime.now().isAfter(deadline)) return text;
-          await Future<void>.delayed(const Duration(milliseconds: 700));
-        }
-      } finally {
-        await subscription.cancel();
+      final origin = _originOf(url);
+      if (origin != null && origin != _origin) {
+        await _navigate(origin);
+        _origin = origin;
+        if (settle > Duration.zero) await Future<void>.delayed(settle);
+      }
+
+      final viaFetch = await _fetchInsidePage(url);
+      if (viaFetch != null && looksLikePayload(viaFetch)) return viaFetch;
+
+      // Fallback: some deployments answer the API URL directly.
+      await _navigate(url);
+      final deadline = DateTime.now().add(timeout);
+      while (true) {
+        final text = await _bodyText();
+        if (looksLikePayload(text)) return text;
+        if (DateTime.now().isAfter(deadline)) return text;
+        await Future<void>.delayed(const Duration(milliseconds: 700));
       }
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Runs `fetch` inside the already-loaded page and collects the body over the
+  /// web-message channel (executeScript cannot await a promise).
+  Future<String?> _fetchInsidePage(String url) async {
+    final completer = Completer<String?>();
+    final subscription = controller.webMessage.listen((message) {
+      if (message is! String || completer.isCompleted) return;
+      try {
+        final decoded = jsonDecode(message);
+        if (decoded is! Map || decoded['praxinoFetch'] != url) return;
+        final body = decoded['body'];
+        completer.complete(body is String ? body : null);
+      } on FormatException {
+        // Not ours.
+      }
+    });
+    try {
+      final encoded = jsonEncode(url);
+      await controller.executeScript('''
+(function () {
+  try {
+    fetch($encoded, {credentials: 'include'})
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        window.chrome.webview.postMessage(JSON.stringify({praxinoFetch: $encoded, body: t}));
+      })
+      .catch(function (e) {
+        window.chrome.webview.postMessage(JSON.stringify({praxinoFetch: $encoded, error: String(e)}));
+      });
+  } catch (e) {
+    window.chrome.webview.postMessage(JSON.stringify({praxinoFetch: $encoded, error: String(e)}));
+  }
+})();
+''');
+      return await completer.future.timeout(timeout);
+    } catch (_) {
+      return null;
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
+  Future<void> _navigate(String url) async {
+    final loaded = Completer<void>();
+    final subscription = controller.loadingState.listen((state) {
+      if (state == LoadingState.navigationCompleted && !loaded.isCompleted) {
+        loaded.complete();
+      }
+    });
+    try {
+      await controller.loadUrl(url);
+      await loaded.future.timeout(timeout);
+    } finally {
+      await subscription.cancel();
     }
   }
 
@@ -82,6 +148,12 @@ class WebViewBrowserFetch implements BrowserFetch {
     } catch (_) {
       return null;
     }
+  }
+
+  static String? _originOf(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
+    return '${uri.scheme}://${uri.host}/';
   }
 
   /// JSON or CMS XML — anything that is not the challenge page's HTML.

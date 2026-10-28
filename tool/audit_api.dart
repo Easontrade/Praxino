@@ -8,11 +8,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:path/path.dart' as p;
 import 'package:praxino/core/sources/tvbox/tvbox_adapter.dart';
 import 'package:praxino/core/sources/tvbox/tvbox_config.dart';
 
-const _chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+const _chrome =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 Future<void> main(List<String> args) async {
@@ -23,13 +25,19 @@ Future<void> main(List<String> args) async {
     Directory(p.join(appData, 'Praxino', 'tvbox')),
   );
   final client = http.Client();
+  final trustAll = IOClient(
+    HttpClient()..badCertificateCallback = (_, _, _) => true,
+  );
   stdout.writeln('sites=${sites.length} query=$query');
 
   final rows = <_Row>[];
   await _pool(sites, 8, (site) async {
     final list = await _ask(client, site, 'list', query);
+    final loose = list.error == null && list.count > 0
+        ? list
+        : await _ask(trustAll, site, 'list', query);
     final detail = await _ask(client, site, 'detail', query);
-    rows.add(_Row(site: site, list: list, detail: detail));
+    rows.add(_Row(site: site, list: list, detail: detail, loose: loose));
   });
 
   var listOk = 0;
@@ -64,15 +72,21 @@ Future<void> main(List<String> args) async {
 
   stdout.writeln('--- per site (empty or error) ---');
   for (final row in rows.where((r) => r.list.count == 0)) {
-    stdout.writeln('${row.site.name.padRight(18)} '
-        'list=${row.list.count} detail=${row.detail.count} '
-        'err=${row.list.error ?? '-'} head=${row.list.head ?? '-'}');
+    stdout.writeln(
+      '${row.site.name.padRight(18)} '
+      'list=${row.list.count} detail=${row.detail.count} '
+      'err=${row.list.error ?? '-'} head=${row.list.head ?? '-'}',
+    );
   }
 
   stdout.writeln('--- sites where ac=detail beats ac=list ---');
-  for (final row in rows.where((r) => r.list.count == 0 && r.detail.count > 0)) {
-    stdout.writeln('  ${row.site.name}: list=${row.list.count} '
-        'detail=${row.detail.count}');
+  for (final row in rows.where(
+    (r) => r.list.count == 0 && r.detail.count > 0,
+  )) {
+    stdout.writeln(
+      '  ${row.site.name}: list=${row.list.count} '
+      'detail=${row.detail.count}',
+    );
   }
 
   stdout.writeln('--- sample play_url parsing ---');
@@ -82,13 +96,22 @@ Future<void> main(List<String> args) async {
     final raw = await _playUrl(client, row.site, id);
     if (raw == null) continue;
     final parsed = TvBoxAdapter.parsePlayUrl(raw);
-    final episodes = parsed.fold(0, (sum, group) => sum + group.episodes.length);
-    stdout.writeln('${row.site.name}: groups=${parsed.length} '
-        'episodes=$episodes');
-    stdout.writeln('  raw: ${raw.length > 120 ? '${raw.substring(0, 120)}…' : raw}');
+    final episodes = parsed.fold(
+      0,
+      (sum, group) => sum + group.episodes.length,
+    );
+    stdout.writeln(
+      '${row.site.name}: groups=${parsed.length} '
+      'episodes=$episodes',
+    );
+    stdout.writeln(
+      '  raw: ${raw.length > 120 ? '${raw.substring(0, 120)}…' : raw}',
+    );
     if (parsed.isNotEmpty && parsed.first.episodes.isNotEmpty) {
-      stdout.writeln('  parsed[0]: ${parsed.first.episodes.first.name} -> '
-          '${parsed.first.episodes.first.url}');
+      stdout.writeln(
+        '  parsed[0]: ${parsed.first.episodes.first.name} -> '
+        '${parsed.first.episodes.first.url}',
+      );
     }
   }
   client.close();
@@ -97,7 +120,9 @@ Future<void> main(List<String> args) async {
 String _classify(_Answer answer) {
   final error = answer.error?.toLowerCase() ?? '';
   if (error.contains('handshake')) return 'TLS handshake rejected (anti-bot)';
-  if (error.contains('connection closed')) return 'connection closed (anti-bot)';
+  if (error.contains('connection closed')) {
+    return 'connection closed (anti-bot)';
+  }
   if (error.contains('timeout')) return 'timeout';
   if (error.contains('http 4')) return 'HTTP 4xx';
   if (error.isNotEmpty) return 'other network error';
@@ -113,11 +138,17 @@ String _classify(_Answer answer) {
 }
 
 class _Row {
-  _Row({required this.site, required this.list, required this.detail});
+  _Row({
+    required this.site,
+    required this.list,
+    required this.detail,
+    required this.loose,
+  });
 
   final TvBoxSite site;
   final _Answer list;
   final _Answer detail;
+  final _Answer loose;
 }
 
 class _Answer {
@@ -136,16 +167,13 @@ Future<_Answer> _ask(
   String query,
 ) async {
   final base = Uri.parse(site.api);
-  final uri = base.replace(queryParameters: {
-    ...base.queryParameters,
-    'ac': ac,
-    'wd': query,
-  });
+  final uri = base.replace(
+    queryParameters: {...base.queryParameters, 'ac': ac, 'wd': query},
+  );
   try {
-    final response = await client.get(
-      uri,
-      headers: {'User-Agent': _chrome, 'Accept': '*/*'},
-    ).timeout(const Duration(seconds: 12));
+    final response = await client
+        .get(uri, headers: {'User-Agent': _chrome, 'Accept': '*/*'})
+        .timeout(const Duration(seconds: 12));
     if (response.statusCode >= 400) {
       return _Answer(count: 0, error: 'HTTP ${response.statusCode}');
     }
@@ -159,7 +187,10 @@ Future<_Answer> _ask(
     );
   } catch (error) {
     final text = '$error'.split('\n').first;
-    return _Answer(count: 0, error: text.length > 70 ? text.substring(0, 70) : text);
+    return _Answer(
+      count: 0,
+      error: text.length > 70 ? text.substring(0, 70) : text,
+    );
   }
 }
 
@@ -185,16 +216,13 @@ List<String> _items(String text) {
 
 Future<String?> _playUrl(http.Client client, TvBoxSite site, String id) async {
   final base = Uri.parse(site.api);
-  final uri = base.replace(queryParameters: {
-    ...base.queryParameters,
-    'ac': 'detail',
-    'ids': id,
-  });
+  final uri = base.replace(
+    queryParameters: {...base.queryParameters, 'ac': 'detail', 'ids': id},
+  );
   try {
-    final response = await client.get(
-      uri,
-      headers: {'User-Agent': _chrome, 'Accept': '*/*'},
-    ).timeout(const Duration(seconds: 12));
+    final response = await client
+        .get(uri, headers: {'User-Agent': _chrome, 'Accept': '*/*'})
+        .timeout(const Duration(seconds: 12));
     if (response.statusCode >= 400) return null;
     final text = utf8.decode(response.bodyBytes, allowMalformed: true);
     if (text.trimLeft().startsWith('{')) {
@@ -205,7 +233,8 @@ Future<String?> _playUrl(http.Client client, TvBoxSite site, String id) async {
       }
       return null;
     }
-    final match = RegExp(r'<vod_play_url>([\s\S]*?)</vod_play_url>').firstMatch(text);
+    final match = RegExp(r'<vod_play_url>([\s\S]*?)</vod_play_url>')
+        .firstMatch(text);
     return match?.group(1);
   } catch (_) {
     return null;
@@ -226,6 +255,7 @@ Future<void> _pool<T>(
     }
   }
 
-  await Future.wait(List.generate(items.length < limit ? limit : items.length,
-      (_) => worker()));
+  await Future.wait(
+    List.generate(items.length < limit ? limit : items.length, (_) => worker()),
+  );
 }

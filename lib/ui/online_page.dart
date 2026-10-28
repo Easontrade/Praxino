@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
 import '../core/settings/settings_store.dart';
-import '../core/sources/browser/webview_browser_fetch.dart';
 import '../core/sources/extra_source.dart';
 import '../core/sources/reliability/title_match.dart';
 import '../core/sources/script/script_adapter.dart';
@@ -24,13 +23,16 @@ import 'media_detail_page.dart';
 import 'source_report_page.dart';
 import 'source_report_play.dart';
 import 'subscriptions_page.dart';
-import 'webview_browser_host.dart';
 
 /// Searches every enabled subscription and drills into one hit.
 ///
 /// The page owns no sources; adapters come from the user's subscriptions.
 class OnlinePage extends StatefulWidget {
-  const OnlinePage({super.key, required this.settings, this.adapters});
+  const OnlinePage({
+    super.key,
+    required this.settings,
+    this.adapters,
+  });
 
   final SettingsStore settings;
 
@@ -49,7 +51,6 @@ class _OnlinePageState extends State<OnlinePage> {
   Map<String, SourceAdapter> _byId = const {};
   bool _searching = false;
   final Set<String> _unresponsive = {};
-  late final WebViewBrowserFetch _browser;
   SourceReportRunner? _rankRunner;
   List<SourceReportEntry> _rankEntries = const [];
   int _rankDone = 0;
@@ -59,14 +60,12 @@ class _OnlinePageState extends State<OnlinePage> {
   @override
   void initState() {
     super.initState();
-    _browser = WebViewBrowserFetch();
     unawaited(_rebuildAdapters());
   }
 
   @override
   void dispose() {
     _rankRunner?.close();
-    unawaited(_browser.dispose());
     _client?.close();
     _query.dispose();
     super.dispose();
@@ -93,17 +92,16 @@ class _OnlinePageState extends State<OnlinePage> {
       try {
         switch (extra.type) {
           case ExtraSourceType.stremio:
-            adapters.add(
-              await StremioAdapter.load(extra.location, client: client),
-            );
+            adapters.add(await StremioAdapter.load(
+              extra.location,
+              client: client,
+            ));
           case ExtraSourceType.script:
-            adapters.add(
-              ScriptAdapter(
-                id: 'script:${extra.id}',
-                name: extra.name,
-                script: extra.location,
-              ),
-            );
+            adapters.add(ScriptAdapter(
+              id: 'script:${extra.id}',
+              name: extra.name,
+              script: extra.location,
+            ));
         }
       } catch (_) {
         // One broken addon/script must not hide the other sources.
@@ -115,14 +113,11 @@ class _OnlinePageState extends State<OnlinePage> {
         Directory(p.join(appData, 'Praxino', 'tvbox')),
       );
       for (final site in sites.where((site) => site.searchable)) {
-        adapters.add(
-          TvBoxAdapter(
-            api: site.api,
-            displayName: site.name,
-            browser: _browser,
-            client: client,
-          ),
-        );
+        adapters.add(TvBoxAdapter(
+          api: site.api,
+          displayName: site.name,
+          client: client,
+        ));
       }
     }
     if (!mounted) {
@@ -136,21 +131,17 @@ class _OnlinePageState extends State<OnlinePage> {
   }
 
   Future<void> _openSubscriptions() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SubscriptionsPage(settings: widget.settings),
-      ),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SubscriptionsPage(settings: widget.settings),
+    ));
     if (!mounted) return;
     await _rebuildAdapters();
   }
 
   Future<void> _openExtraSources() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ExtraSourcesPage(settings: widget.settings),
-      ),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ExtraSourcesPage(settings: widget.settings),
+    ));
     if (!mounted) return;
     await _rebuildAdapters();
   }
@@ -163,7 +154,6 @@ class _OnlinePageState extends State<OnlinePage> {
       return;
     }
     _rankRunner?.close();
-    _browser.resetBudget();
     setState(() {
       _searching = true;
       _results.clear();
@@ -173,7 +163,6 @@ class _OnlinePageState extends State<OnlinePage> {
       _rankRunning = false;
     });
     final registry = SourceRegistry(
-      timeout: const Duration(seconds: 20),
       sources: [
         for (final adapter in _adapters)
           if (!_unresponsive.contains(adapter.id)) adapter,
@@ -182,23 +171,16 @@ class _OnlinePageState extends State<OnlinePage> {
     await for (final result in registry.search(query)) {
       if (!mounted) return;
       if (result.hasError) _unresponsive.add(result.sourceId);
-      final items = [...result.items]
-        ..sort(
-          (a, b) => TitleMatcher.score(
+      final items = [...result.items]..sort((a, b) => TitleMatcher.score(
             query,
             b.title,
-          ).score.compareTo(TitleMatcher.score(query, a.title).score),
-        );
-      setState(
-        () => _results.add(
-          SourceSearchResult(
+          ).score.compareTo(TitleMatcher.score(query, a.title).score));
+      setState(() => _results.add(SourceSearchResult(
             sourceId: result.sourceId,
             sourceName: result.sourceName,
             items: items,
             error: result.error,
-          ),
-        ),
-      );
+          )));
     }
     if (!mounted) return;
     setState(() => _searching = false);
@@ -211,8 +193,7 @@ class _OnlinePageState extends State<OnlinePage> {
     if (title.toLowerCase().contains(q)) return true;
     final normalizedTitle = TitleMatcher.normalizeTitle(title);
     final normalizedQuery = TitleMatcher.normalizeTitle(query);
-    if (normalizedQuery.isNotEmpty &&
-        normalizedTitle.contains(normalizedQuery)) {
+    if (normalizedQuery.isNotEmpty && normalizedTitle.contains(normalizedQuery)) {
       return true;
     }
     return TitleMatcher.score(query, title).score >= 0.45;
@@ -257,18 +238,14 @@ class _OnlinePageState extends State<OnlinePage> {
       _rankTotal = total;
       _rankRunning = true;
     });
-    unawaited(
-      runner.run(
-        onUpdate: () {
-          if (!mounted || _rankRunner != runner) return;
-          setState(() {
-            _rankEntries = List.of(runner.entries);
-            _rankDone = runner.done;
-            _rankRunning = runner.running;
-          });
-        },
-      ),
-    );
+    unawaited(runner.run(onUpdate: () {
+      if (!mounted || _rankRunner != runner) return;
+      setState(() {
+        _rankEntries = List.of(runner.entries);
+        _rankDone = runner.done;
+        _rankRunning = runner.running;
+      });
+    }));
   }
 
   Future<void> _copy(String link) async {
@@ -280,15 +257,13 @@ class _OnlinePageState extends State<OnlinePage> {
   Future<void> _open(SourceSearchResult result, MediaSummary media) async {
     final adapter = _byId[result.sourceId];
     if (adapter == null) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MediaDetailPage(
-          adapter: adapter,
-          media: media,
-          settings: widget.settings,
-        ),
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MediaDetailPage(
+        adapter: adapter,
+        media: media,
+        settings: widget.settings,
       ),
-    );
+    ));
   }
 
   Future<void> _openSourceReport() async {
@@ -302,15 +277,13 @@ class _OnlinePageState extends State<OnlinePage> {
       _toast('先搜索，有结果后才能生成源排行');
       return;
     }
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SourceReportPage(
-          query: _query.text.trim(),
-          inputs: inputs,
-          settings: widget.settings,
-        ),
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SourceReportPage(
+        query: _query.text.trim(),
+        inputs: inputs,
+        settings: widget.settings,
       ),
-    );
+    ));
   }
 
   void _toast(String text) {
@@ -321,53 +294,50 @@ class _OnlinePageState extends State<OnlinePage> {
 
   @override
   Widget build(BuildContext context) {
-    return WebViewBrowserHost(
-      controller: _browser.controller,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('在线搜索'),
-          actions: [
-            IconButton(
-              tooltip: '完整源排行',
-              icon: const Icon(Icons.leaderboard_outlined),
-              onPressed: _results.isEmpty ? null : _openSourceReport,
-            ),
-            IconButton(
-              tooltip: '扩展源',
-              icon: const Icon(Icons.extension),
-              onPressed: _openExtraSources,
-            ),
-            IconButton(
-              tooltip: '管理订阅',
-              icon: const Icon(Icons.rss_feed),
-              onPressed: _openSubscriptions,
-            ),
-          ],
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: TextField(
-                controller: _query,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: '输入片名，回车搜索',
-                  prefixIcon: const Icon(Icons.search),
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: '搜索',
-                    icon: const Icon(Icons.arrow_forward),
-                    onPressed: _searching ? null : _search,
-                  ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('在线搜索'),
+        actions: [
+          IconButton(
+            tooltip: '完整源排行',
+            icon: const Icon(Icons.leaderboard_outlined),
+            onPressed: _results.isEmpty ? null : _openSourceReport,
+          ),
+          IconButton(
+            tooltip: '扩展源',
+            icon: const Icon(Icons.extension),
+            onPressed: _openExtraSources,
+          ),
+          IconButton(
+            tooltip: '管理订阅',
+            icon: const Icon(Icons.rss_feed),
+            onPressed: _openSubscriptions,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _query,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: '输入片名，回车搜索',
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  tooltip: '搜索',
+                  icon: const Icon(Icons.arrow_forward),
+                  onPressed: _searching ? null : _search,
                 ),
-                onSubmitted: (_) => _search(),
               ),
+              onSubmitted: (_) => _search(),
             ),
-            if (_searching) const LinearProgressIndicator(),
-            Expanded(child: _body()),
-          ],
-        ),
+          ),
+          if (_searching) const LinearProgressIndicator(),
+          Expanded(child: _body()),
+        ],
       ),
     );
   }
@@ -398,7 +368,8 @@ class _OnlinePageState extends State<OnlinePage> {
     final okCount = _results
         .where((result) => !result.hasError && result.items.isNotEmpty)
         .length;
-    final failedCount = _results.where((result) => result.hasError).length;
+    final failedCount =
+        _results.where((result) => result.hasError).length;
     return ListView(
       children: [
         if (_results.isNotEmpty)
@@ -411,7 +382,8 @@ class _OnlinePageState extends State<OnlinePage> {
           ),
         if (_rankRunning || _rankEntries.isNotEmpty) _rankingSection(),
         if (_rankEntries.isNotEmpty) const Divider(thickness: 2),
-        for (final result in _results.where((result) => !result.hasError)) ...[
+        for (final result
+            in _results.where((result) => !result.hasError)) ...[
           ListTile(
             title: Text(result.sourceName),
             subtitle: Text('${result.items.length} 个结果'),
@@ -434,7 +406,8 @@ class _OnlinePageState extends State<OnlinePage> {
             title: Text('其他源未响应（$failedCount）'),
             subtitle: const Text('多为失效的公开 TVBox 配置或网络超时，不影响上方可用源'),
             children: [
-              for (final result in _results.where((result) => result.hasError))
+              for (final result
+                  in _results.where((result) => result.hasError))
                 ListTile(
                   dense: true,
                   title: Text(result.sourceName),
@@ -463,11 +436,9 @@ class _OnlinePageState extends State<OnlinePage> {
         ListTile(
           leading: const Icon(Icons.leaderboard_outlined),
           title: const Text('源排行（自动检测）'),
-          subtitle: Text(
-            _rankRunning
-                ? '正在检测 $_rankDone / $_rankTotal 个源'
-                : '能看 ${watchable.length} 个 · 打不开 ${broken.length} 个',
-          ),
+          subtitle: Text(_rankRunning
+              ? '正在检测 $_rankDone / $_rankTotal 个源'
+              : '能看 ${watchable.length} 个 · 打不开 ${broken.length} 个'),
           trailing: _rankRunning
               ? const SizedBox(
                   width: 20,
@@ -506,25 +477,25 @@ class _OnlinePageState extends State<OnlinePage> {
   }
 
   Widget _rankRow(SourceReportEntry entry) => ListTile(
-    dense: true,
-    leading: Icon(
-      entry.watchable ? Icons.play_circle_outline : Icons.block,
-      color: entry.watchable ? Colors.green : Colors.red,
-    ),
-    title: Text('${entry.sourceName} · ${entry.title}'),
-    subtitle: Text(
-      entry.quality == '未知' || entry.quality.isEmpty
-          ? entry.verdict
-          : '${entry.verdict} · ${entry.quality}',
-      style: TextStyle(color: entry.watchable ? Colors.green : Colors.red),
-    ),
-    trailing: IconButton(
-      tooltip: '复制链接',
-      icon: const Icon(Icons.copy),
-      onPressed: () => _copy(entry.link),
-    ),
-    onTap: entry.watchable
-        ? () => playReportEntry(context, widget.settings, entry)
-        : null,
-  );
+        dense: true,
+        leading: Icon(
+          entry.watchable ? Icons.play_circle_outline : Icons.block,
+          color: entry.watchable ? Colors.green : Colors.red,
+        ),
+        title: Text('${entry.sourceName} · ${entry.title}'),
+        subtitle: Text(
+          entry.quality == '未知' || entry.quality.isEmpty
+              ? entry.verdict
+              : '${entry.verdict} · ${entry.quality}',
+          style: TextStyle(color: entry.watchable ? Colors.green : Colors.red),
+        ),
+        trailing: IconButton(
+          tooltip: '复制链接',
+          icon: const Icon(Icons.copy),
+          onPressed: () => _copy(entry.link),
+        ),
+        onTap: entry.watchable
+            ? () => playReportEntry(context, widget.settings, entry)
+            : null,
+      );
 }

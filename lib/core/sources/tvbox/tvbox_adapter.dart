@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart';
 
-import '../browser/browser_fetch.dart';
 import '../source_adapter.dart';
 
 /// Apple CMS / TVBox JSON or XML API adapter.
@@ -15,16 +14,14 @@ class TvBoxAdapter implements SourceAdapter {
     required this.api,
     this.displayName = 'TVBox',
     this.headers = const {},
-    this.browser,
     http.Client? client,
-  }) : _uri = Uri.parse(api),
-       _client = client ?? http.Client();
+  })  : _uri = Uri.parse(api),
+        _client = client ?? http.Client();
 
   final String api;
   final String displayName;
   final Map<String, String> headers;
   final Uri _uri;
-  final BrowserFetch? browser;
   final http.Client _client;
 
   @override
@@ -79,9 +76,10 @@ class TvBoxAdapter implements SourceAdapter {
         episodes.add(Episode(name: parts.first.trim(), url: url));
       }
       if (episodes.isNotEmpty) {
-        groups.add(
-          EpisodeGroup(name: '线路 ${groups.length + 1}', episodes: episodes),
-        );
+        groups.add(EpisodeGroup(
+          name: '线路 ${groups.length + 1}',
+          episodes: episodes,
+        ));
       }
     }
     return groups;
@@ -91,44 +89,23 @@ class TvBoxAdapter implements SourceAdapter {
     final uri = _uri.replace(
       queryParameters: {..._uri.queryParameters, ...query},
     );
-    String? text;
-    Object? failure;
+    final http.Response response;
     try {
-      final response = await _client.get(
-        uri,
-        headers: {'User-Agent': 'Mozilla/5.0', ...headers},
-      );
-      if (response.statusCode >= 400) {
-        failure = TvBoxException('HTTP ${response.statusCode}');
-      } else {
-        text = utf8.decode(response.bodyBytes, allowMalformed: true);
-      }
+      response = await _client.get(uri, headers: {
+        'User-Agent': 'Mozilla/5.0',
+        ...headers,
+      });
     } on Exception catch (error) {
-      failure = TvBoxException('请求失败：$error');
+      throw TvBoxException('请求失败：$error');
     }
-    // Anti-bot deployments cut the TLS handshake or answer with a challenge
-    // page. Only a real browser engine gets through, so retry the same URL
-    // there before giving up on this source.
-    if ((text == null || _isChallengePage(text)) && browser != null) {
-      final fromBrowser = await browser!.fetch(uri.toString());
-      if (fromBrowser != null && fromBrowser.trim().isNotEmpty) {
-        text = fromBrowser;
-      }
+    if (response.statusCode >= 400) {
+      throw TvBoxException('HTTP ${response.statusCode}');
     }
-    if (text == null) {
-      throw failure ?? const TvBoxException('请求失败');
-    }
-    return _parseText(text);
+    return _parseBody(response.bodyBytes);
   }
 
-  /// A browser challenge page is HTML; real answers are JSON or CMS XML.
-  static bool _isChallengePage(String text) {
-    final head = text.trimLeft().toLowerCase();
-    if (head.isEmpty) return true;
-    return head.startsWith('<!doctype') || head.startsWith('<html');
-  }
-
-  static List<_TvBoxItem> _parseText(String text) {
+  static List<_TvBoxItem> _parseBody(List<int> bytes) {
+    final text = utf8.decode(bytes, allowMalformed: true);
     final json = _tryJson(text);
     if (json != null) return _fromJson(json);
     try {

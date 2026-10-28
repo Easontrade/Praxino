@@ -54,8 +54,9 @@ $env:PRAXINO_DANDAN_APP_SECRET = '<AppSecret>'
 ```
 
 凭证只以 `--dart-define` 的形式在构建时注入（base64 编码，仓库里不留明文）；不设这两个变量时，
-安装包仍然可用，用户需要在设置页里自己填。凭证是否有效可以用
-`.\tool\check_dandanplay.ps1` 直接对着开放接口自检，不需要启动播放器。
+安装包仍然可用，用户需要在设置页里自己填。凭证是否有效可以直接对着开放接口自检，不需要启动播放器：
+`.\tool\check_dandanplay.ps1` 用环境变量里的凭证发一次签名请求，
+`dart run tool/check_dandanplay.dart` 走的则是播放器自己用的那份客户端。
 
 开发规范见 [AGENTS.md](AGENTS.md)，架构说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 

@@ -78,7 +78,8 @@ void main() {
     expect(comments[2].mode, DanmakuMode.bottom);
   });
 
-  test('searchEpisodes parses episode ids', () async {
+  test('searchEpisodes flattens the per-anime grouping of the live API',
+      () async {
     final api = DandanplayClient(
       appId: 'id',
       appSecret: 'secret',
@@ -86,15 +87,51 @@ void main() {
         expect(request.url.queryParameters['anime'], 'Demo');
         return _json({
           'success': true,
+          'animes': [
+            {
+              'animeId': 1,
+              'animeTitle': 'Demo',
+              'episodes': [
+                {'episodeId': 7, 'episodeTitle': 'E1'},
+                {'episodeId': 8, 'episodeTitle': 'E2'},
+              ],
+            },
+            {
+              'animeId': 2,
+              'animeTitle': 'Demo Movie',
+              'episodes': [
+                {'episodeId': 9, 'episodeTitle': '前篇'},
+              ],
+            },
+          ],
+        });
+      }),
+    );
+
+    final episodes = await api.searchEpisodes(anime: 'Demo', episode: '1');
+    expect(episodes.map((e) => e.episodeId), [7, 8, 9]);
+    expect(episodes.first.animeTitle, 'Demo');
+    expect(episodes.last.animeTitle, 'Demo Movie');
+    expect(episodes.last.episodeTitle, '前篇');
+  });
+
+  test('searchEpisodes still accepts a flat episode list', () async {
+    final api = DandanplayClient(
+      appId: 'id',
+      appSecret: 'secret',
+      client: MockClient((request) async {
+        return _json({
+          'success': true,
           'episodes': [
             {'episodeId': 7, 'animeTitle': 'Demo', 'episodeTitle': 'E1'}
-          ]
+          ],
         });
       }),
     );
 
     final episodes = await api.searchEpisodes(anime: 'Demo', episode: '1');
     expect(episodes.single.episodeId, 7);
+    expect(episodes.single.animeTitle, 'Demo');
   });
 
   test('API errors become DandanplayException', () async {

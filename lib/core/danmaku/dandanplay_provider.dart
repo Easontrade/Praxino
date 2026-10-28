@@ -100,17 +100,47 @@ class DandanplayClient {
         if (episode != null && episode.isNotEmpty) 'episode': episode,
       },
     );
+    final result = <DandanplayEpisode>[];
+
+    // The live API groups episodes per anime, and the episode objects do not
+    // repeat the anime title:
+    //   {"animes":[{"animeTitle":"…","episodes":[{"episodeId":…}]}]}
+    final animes = response['animes'];
+    if (animes is List) {
+      for (final animeEntry in animes) {
+        if (animeEntry is! Map) continue;
+        final animeTitle = '${animeEntry['animeTitle'] ?? ''}';
+        final episodes = animeEntry['episodes'];
+        if (episodes is! List) continue;
+        for (final entry in episodes) {
+          final parsed = _episode(entry, animeTitle);
+          if (parsed != null) result.add(parsed);
+        }
+      }
+    }
+    if (result.isNotEmpty) return result;
+
+    // Some compatible servers return a flat list instead.
     final episodes = response['episodes'];
-    if (episodes is! List) return const [];
-    return [
-      for (final item in episodes)
-        if (item is Map && item['episodeId'] is num)
-          DandanplayEpisode(
-            episodeId: (item['episodeId'] as num).toInt(),
-            animeTitle: '${item['animeTitle'] ?? ''}',
-            episodeTitle: '${item['episodeTitle'] ?? ''}',
-          ),
-    ];
+    if (episodes is! List) return result;
+    for (final entry in episodes) {
+      final parsed = _episode(entry, '');
+      if (parsed != null) result.add(parsed);
+    }
+    return result;
+  }
+
+  static DandanplayEpisode? _episode(Object? entry, String animeTitle) {
+    if (entry is! Map) return null;
+    final id = entry['episodeId'];
+    if (id is! num) return null;
+    return DandanplayEpisode(
+      episodeId: id.toInt(),
+      animeTitle: animeTitle.isNotEmpty
+          ? animeTitle
+          : '${entry['animeTitle'] ?? ''}',
+      episodeTitle: '${entry['episodeTitle'] ?? ''}',
+    );
   }
 
   Future<List<DanmakuItem>> comments(int episodeId) async {

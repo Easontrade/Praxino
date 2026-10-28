@@ -64,7 +64,7 @@
 | 真实在线字幕账号 | 没有 ASSRT/OpenSubtitles 凭证 |
 | GitHub Release 自动发布 | 需要推送 tag；本地只验证了安装包与校验和 |
 | 3 个真实源播放 / WebView 抓流 | 需要私有测试规则与实际站点；仓库不内置 |
-| 弹弹play 真实凭证与真实弹幕 | 客户端/匹配/凭证/注入路径已完成并有 Mock 单测；真实 AppId/AppSecret 未写入 Secrets 或本机环境变量，需要用户 `tool/check_dandanplay.ps1` 自检后实播一次 |
+| 弹弹play 真实凭证 | 已验证（API 级） | 用审核通过的 AppId/AppSecret 直接请求开放接口：搜索返回 52 集、单集返回 6622 条弹幕，签名被接受；同时修正 `searchEpisodes` 把结果当平铺列表解析的问题（真实接口是 `animes[].episodes[]`）。应用内自动匹配与弹幕显示尚未实播验证（本机没有番剧文件） |
 | 隐藏桌面点击级 UI 自动化 | 当前隐藏桌面只做启动、窗口枚举、单实例 |
 
 ## 复现命令

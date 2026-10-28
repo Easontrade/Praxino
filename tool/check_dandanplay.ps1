@@ -62,13 +62,27 @@ if ($result.success -ne $true) {
     throw "request rejected: $($result.errorMessage) (code=$($result.errorCode))"
 }
 
-$episodes = @($result.episodes)
+# The live API groups results per anime: {animes:[{animeTitle, episodes:[...]}]}.
+# Loop variables must not shadow the $Anime parameter (PowerShell is
+# case-insensitive), otherwise the title would be read as a string.
+$episodes = @(
+    foreach ($animeEntry in @($result.animes)) {
+        foreach ($episodeEntry in @($animeEntry.episodes)) {
+            [pscustomobject]@{
+                episodeId    = $episodeEntry.episodeId
+                animeTitle   = $animeEntry.animeTitle
+                episodeTitle = $episodeEntry.episodeTitle
+            }
+        }
+    }
+)
 Write-Output "ok episodes=$($episodes.Count)"
-foreach ($episode in $episodes | Select-Object -First 5) {
-    Write-Output "  [$($episode.episodeId)] $($episode.animeTitle) / $($episode.episodeTitle)"
+foreach ($row in $episodes | Select-Object -First 5) {
+    Write-Output "  [$($row.episodeId)] $($row.animeTitle) / $($row.episodeTitle)"
 }
 if ($episodes.Count -gt 0) {
-    $comments = Invoke-Dandanplay -Path "/api/v2/comment/$($episodes[0].episodeId)" -Query @{ withRelated = 'true'; chConvert = '1' }
-    Write-Output "ok comments=$(@($comments.comments).Count) episode=$($episodes[0].episodeId)"
+    $first = $episodes[0].episodeId
+    $comments = Invoke-Dandanplay -Path "/api/v2/comment/$first" -Query @{ withRelated = 'true'; chConvert = '1' }
+    Write-Output "ok comments=$(@($comments.comments).Count) episode=$first"
 }
 Write-Output 'dandanplay_ok'

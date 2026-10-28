@@ -13,7 +13,7 @@ import 'browser_fetch.dart';
 class WebViewBrowserFetch implements BrowserFetch {
   WebViewBrowserFetch({
     WebviewController? controller,
-    this.timeout = const Duration(seconds: 8),
+    this.timeout = const Duration(seconds: 6),
   }) : controller = controller ?? WebviewController();
 
   final WebviewController controller;
@@ -21,12 +21,21 @@ class WebViewBrowserFetch implements BrowserFetch {
 
   Future<void> _tail = Future<void>.value();
   int _requestCount = 0;
+  int _budget = 12;
 
   /// How many browser requests were issued; used to cap a single search.
   int get requestCount => _requestCount;
 
+  /// Only requests that already failed the cheap path land here, and a single
+  /// WebView serves them one at a time. Without a budget a search with many
+  /// blocked sources would keep the spinner alive for minutes, so each search
+  /// gets a fixed number of browser attempts.
+  void resetBudget([int requests = 12]) => _budget = requests;
+
   @override
   Future<String?> fetch(String url) {
+    if (_budget <= 0) return Future<String?>.value(null);
+    _budget--;
     _requestCount++;
     final result = _tail.then((_) => _fetch(url));
     _tail = result.then((_) {}, onError: (Object _) {});

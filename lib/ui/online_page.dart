@@ -163,6 +163,7 @@ class _OnlinePageState extends State<OnlinePage> {
       return;
     }
     _rankRunner?.close();
+    _browser.resetBudget();
     setState(() {
       _searching = true;
       _results.clear();

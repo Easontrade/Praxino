@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:praxino/core/sources/source_adapter.dart';
+import 'package:praxino/core/sources/browser/browser_fetch.dart';
 import 'package:praxino/core/sources/tvbox/tvbox_adapter.dart';
 
 http.Response _json(Object body) =>
@@ -14,11 +15,7 @@ const _playUrl =
 
 const _detail = {
   'list': [
-    {
-      'vod_id': 42,
-      'vod_name': '示例剧',
-      'vod_play_url': _playUrl,
-    }
+    {'vod_id': 42, 'vod_name': '示例剧', 'vod_play_url': _playUrl},
   ],
 };
 
@@ -38,15 +35,18 @@ void main() {
         expect(request.url.queryParameters['wd'], '示例');
         return _json({
           'list': [
-            {'vod_id': 42, 'vod_name': '示例剧', 'vod_pic': 'p.jpg'}
-          ]
+            {'vod_id': 42, 'vod_name': '示例剧', 'vod_pic': 'p.jpg'},
+          ],
         });
       }
       expect(request.url.queryParameters['ids'], '42');
       return _json(_detail);
     });
 
-    final adapter = TvBoxAdapter(api: 'https://example.test/api.php', client: client);
+    final adapter = TvBoxAdapter(
+      api: 'https://example.test/api.php',
+      client: client,
+    );
     final hits = await adapter.search('示例');
     expect(hits.single.title, '示例剧');
     expect(hits.single.cover, 'p.jpg');
@@ -64,16 +64,51 @@ void main() {
       expect(request.url.queryParameters['wd'], '示例');
       return _json({
         'list': [
-          {'vod_id': 7, 'vod_name': '示例剧'}
-        ]
+          {'vod_id': 7, 'vod_name': '示例剧'},
+        ],
       });
     });
 
-    final adapter =
-        TvBoxAdapter(api: 'https://example.test/api.php', client: client);
+    final adapter = TvBoxAdapter(
+      api: 'https://example.test/api.php',
+      client: client,
+    );
     final hits = await adapter.search('示例');
     expect(hits.single.title, '示例剧');
     expect(hits.single.url, '7');
+  });
+
+  test(
+    'retries through the browser when the plain request is blocked',
+    () async {
+      var browserCalls = 0;
+      final adapter = TvBoxAdapter(
+        api: 'https://example.test/api.php',
+        client: MockClient(
+          (_) async => http.Response('<html>challenge</html>', 200),
+        ),
+        browser: _FakeBrowser(() async {
+          browserCalls++;
+          return '{"list":[{"vod_id":9,"vod_name":"示例剧"}]}';
+        }),
+      );
+
+      final hits = await adapter.search('示例');
+      expect(browserCalls, 1);
+      expect(hits.single.url, '9');
+    },
+  );
+
+  test('a failed browser retry keeps the original error', () async {
+    final adapter = TvBoxAdapter(
+      api: 'https://example.test/api.php',
+      client: MockClient(
+        (_) async => throw http.ClientException('handshake terminated'),
+      ),
+      browser: _FakeBrowser(() async => null),
+    );
+
+    expect(() => adapter.search('x'), throwsA(isA<TvBoxException>()));
   });
 
   test('parses XML responses', () async {
@@ -84,8 +119,9 @@ void main() {
 </video></list></rss>''';
     final adapter = TvBoxAdapter(
       api: 'https://example.test/api.php',
-      client: MockClient((_) async =>
-          http.Response.bytes(utf8.encode(xml), 200)),
+      client: MockClient(
+        (_) async => http.Response.bytes(utf8.encode(xml), 200),
+      ),
     );
 
     final hits = await adapter.search('x');
@@ -103,7 +139,8 @@ void main() {
     );
 
     final stream = await adapter.resolve(
-        const Episode(name: '1', url: 'https://example.test/a.mp4'));
+      const Episode(name: '1', url: 'https://example.test/a.mp4'),
+    );
     expect(stream!.headers['Referer'], 'https://example.test/');
     expect(
       await adapter.resolve(const Episode(name: '1', url: 'magnet:?xt=1')),
@@ -118,4 +155,13 @@ void main() {
     );
     expect(() => adapter.search('x'), throwsA(isA<TvBoxException>()));
   });
+}
+
+class _FakeBrowser implements BrowserFetch {
+  _FakeBrowser(this.body);
+
+  final Future<String?> Function() body;
+
+  @override
+  Future<String?> fetch(String url) => body();
 }

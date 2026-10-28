@@ -6,6 +6,7 @@ import 'package:praxino/core/settings/settings_store.dart';
 import 'package:praxino/core/sources/reliability/source_prober.dart';
 import 'package:praxino/core/sources/source_adapter.dart';
 import 'package:praxino/core/sources/source_report.dart';
+import 'package:praxino/core/sources/source_report_runner.dart';
 import 'package:praxino/ui/source_report_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,6 +16,7 @@ SourceReportEntry _entry(
   String quality = '未知',
   Duration? latency,
   double score = 1,
+  PlayableStream? stream,
 }) =>
     SourceReportEntry(
       sourceName: source,
@@ -24,6 +26,7 @@ SourceReportEntry _entry(
       quality: quality,
       matchScore: score,
       latency: latency,
+      stream: stream,
     );
 
 void main() {
@@ -78,8 +81,67 @@ void main() {
     );
   });
 
-  testWidgets('renders a reachable source with quality and link',
-      (tester) async {
+  test('verdict is binary: player pages still count as watchable', () {
+    expect(_entry('a', status: SourceReportStatus.reachable).verdict, '能看');
+    expect(_entry('b', status: SourceReportStatus.unresolved).verdict, '能看');
+    expect(_entry('c', status: SourceReportStatus.unreachable).verdict, '不能看');
+  });
+
+  test('bestEntry skips a rejected stream when another one answered', () {
+    final entries = [
+      _entry(
+        'dead',
+        status: SourceReportStatus.unreachable,
+        stream: const PlayableStream('https://example.test/dead.m3u8'),
+      ),
+      _entry(
+        'good',
+        status: SourceReportStatus.reachable,
+        stream: const PlayableStream('https://example.test/good.m3u8'),
+      ),
+    ];
+    expect(SourceReport.bestEntry(entries)!.sourceName, 'good');
+  });
+
+  test('runner reads the direct stream out of a player page', () async {
+    final runner = SourceReportRunner(
+      query: 'FX战士久留美',
+      inputs: [
+        SourceReportInput(
+          adapter: _LandingAdapter(),
+          items: [
+            const MediaSummary(
+              sourceId: 'fake:landing',
+              title: 'FX战士久留美',
+              url: 'https://example.test/show/1',
+            ),
+          ],
+        ),
+      ],
+      probe: (stream) async => ProbeResult(
+        url: stream.url,
+        reachable: true,
+        latency: const Duration(milliseconds: 40),
+      ),
+      httpClient: MockClient((request) async {
+        expect(request.headers['Referer'], 'https://example.test/');
+        return http.Response(
+          '<script>var player={"url":"https:\\/\\/cdn.example.test\\/a\\/index.m3u8"}</script>',
+          200,
+        );
+      }),
+    );
+    addTearDown(runner.close);
+
+    await runner.run();
+
+    final entry = runner.entries.single;
+    expect(entry.stream?.url, 'https://cdn.example.test/a/index.m3u8');
+    expect(entry.status, SourceReportStatus.reachable);
+    expect(entry.verdict, '能看');
+  });
+
+  testWidgets('renders a reachable source as 能看', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final store = await SettingsStore.load();
     final adapter = _FakeAdapter();
@@ -109,12 +171,11 @@ void main() {
     ));
     for (var i = 0; i < 50; i++) {
       await tester.pump(const Duration(milliseconds: 100));
-      if (find.textContaining('可播放').evaluate().isNotEmpty) break;
+      if (find.textContaining('能看').evaluate().isNotEmpty) break;
     }
 
-    expect(find.textContaining('可播放'), findsOneWidget);
+    expect(find.textContaining('能看'), findsWidgets);
     expect(find.textContaining('1080p'), findsWidgets);
-    expect(find.byType(SelectableText), findsOneWidget);
   });
 }
 
@@ -141,4 +202,28 @@ class _FakeAdapter implements SourceAdapter {
         'https://example.test/first.m3u8',
         height: 1080,
       );
+}
+
+/// Returns a player page, like most CMS episode URLs.
+class _LandingAdapter implements SourceAdapter {
+  @override
+  String get id => 'fake:landing';
+
+  @override
+  String get name => '抓流源';
+
+  @override
+  Future<List<MediaSummary>> search(String keyword) async => const [];
+
+  @override
+  Future<List<EpisodeGroup>> episodes(MediaSummary media) async => const [
+        EpisodeGroup(
+          name: '线路 1',
+          episodes: [Episode(name: '第 1 集', url: 'https://example.test/play/1')],
+        ),
+      ];
+
+  @override
+  Future<PlayableStream?> resolve(Episode episode) async =>
+      PlayableStream(episode.url);
 }

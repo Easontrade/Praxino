@@ -116,21 +116,50 @@ class SourceReportRunner {
         }
         if (stream == null ||
             SourceReport.looksLikeLandingPage(stream.url)) {
-          entry = SourceReportEntry(
-            sourceName: adapter.name,
-            title: media.title,
-            link: stream?.url ?? episode.url,
-            status: SourceReportStatus.unresolved,
-            quality: '未知',
-            matchScore: score,
-            detail: stream == null
-                ? '需要 WebView 抓流；从搜索结果打开这一集会继续解析'
-                : '这是播放页而不是直链，需要 WebView 抓流',
-            stream: stream,
-            adapter: adapter,
-            media: media,
-            episode: episode,
-          );
+          final pageUrl = stream?.url ?? episode.url;
+          // Most CMS play pages keep the real m3u8 in an inline script. Reading
+          // it here turns "需抓流" into a row that plays on the first tap;
+          // the WebView sniffer stays as the fallback.
+          final extracted = await streamFromPage(pageUrl);
+          final probe = extracted == null ? null : await _probe(extracted);
+          if (extracted != null && probe != null && probe.reachable) {
+            final hls = await hlsResolution(extracted);
+            entry = SourceReportEntry(
+              sourceName: adapter.name,
+              title: media.title,
+              link: extracted.url,
+              status: SourceReportStatus.reachable,
+              quality: SourceReport.qualityOf(
+                height: extracted.height,
+                width: extracted.width,
+                title: '${media.title} ${episode.name}',
+                url: extracted.url,
+                hlsResolution: hls,
+              ),
+              matchScore: score,
+              latency: probe.latency,
+              stream: extracted,
+              adapter: adapter,
+              media: media,
+              episode: episode,
+            );
+          } else {
+            entry = SourceReportEntry(
+              sourceName: adapter.name,
+              title: media.title,
+              link: pageUrl,
+              status: SourceReportStatus.unresolved,
+              quality: '未知',
+              matchScore: score,
+              detail: stream == null
+                  ? '需要 WebView 抓流；从搜索结果打开这一集会继续解析'
+                  : '这是播放页而不是直链，需要 WebView 抓流',
+              stream: stream,
+              adapter: adapter,
+              media: media,
+              episode: episode,
+            );
+          }
         } else {
           final hls = await hlsResolution(stream);
           final probe = await _probe(stream);
@@ -177,6 +206,35 @@ class SourceReportRunner {
     done++;
     SourceReport.sort(entries);
     onUpdate?.call();
+  }
+
+  static const _browserUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+  /// Pulls a direct stream URL out of a player page's HTML.
+  ///
+  /// CMS sites usually embed it in an inline script, sometimes with escaped
+  /// slashes; the Referer is the page's own origin, which is what almost every
+  /// CDN asks for. Returns null when the page does not expose one.
+  Future<PlayableStream?> streamFromPage(String pageUrl) async {
+    final uri = Uri.tryParse(pageUrl);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
+    final origin = '${uri.scheme}://${uri.host}/';
+    final headers = {'User-Agent': _browserUserAgent, 'Referer': origin};
+    try {
+      final response =
+          await _http.get(uri, headers: headers).timeout(const Duration(seconds: 6));
+      if (response.statusCode >= 400) return null;
+      final text = response.body.replaceAll(r'\/', '/');
+      final match = RegExp(
+        r'''https?://[^\s"'\\]+?\.(?:m3u8|mp4)[^\s"'\\]*''',
+      ).firstMatch(text);
+      if (match == null) return null;
+      return PlayableStream(match.group(0)!, headers: headers);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String?> hlsResolution(PlayableStream stream) async {

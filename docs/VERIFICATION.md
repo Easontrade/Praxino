@@ -38,7 +38,7 @@
 | AI 双语字幕管线 | 已验证（Mock） | Whisper JSON 解析、DeepSeek 对齐/重试/回退、术语表、40 句分批、ASS/SRT 生成、缓存命中不重复计费、费用确认、Key 缺失提示；真实 Whisper/DeepSeek 未验证 |
 | AI 字幕设置与任务类型 | 已验证（Widget/单测） | 设置页保存 Whisper/DeepSeek 配置；离线任务页区分超分与双语字幕、暂停排队任务；旧任务 JSON 无 `type` 时回退为超分 |
 | 内置 libmpv 的降噪 | 已验证 | 内置 libmpv 没有 `hqdn3d`，旧的 `vf=lavfi` 会让视频输出失败并黑屏；改成 `denoise.glsl` GPU shader 后，在“Anime4K 高质量 + 去色带 + 降噪”的持久化设置下，1080p 23.976 正常播放（`[stats] height=1080 fps=23.976`，进度写入 watch history） |
-| 源排行 | 已验证（Mock/Widget） | 搜索结果出来后自动逐源解析首集、探测直链、HLS 分辨率、质量/延迟/标题分排序、播放页识别、复制链接；顶部“播放最佳源”和每行播放按钮可一键进入播放，需抓流的源自动打开详情页并自动播放第一集；真实源检测用临时脚本跑过（30 个源命中 FX战士久留美，3 个直链可达） |
+| 源排行 | 已验证（Mock/Widget） | 行状态只显示能看/不能看，打不开的源折叠在下面；播放页会先带 Referer 从 HTML 里抠出 m3u8（抠到且探测通过就直接播），抠不到才回落到 WebView 抓流；“播放最佳源”不再优先探测失败的行；真实源检测用临时脚本跑过（30 个源命中 FX战士久留美，3 个直链可达） |
 | 单源搜索 | 已验证 | 规则搜索返回结果（仅元数据，不播放） |
 | Stremio adapter | 已验证（Mock） | manifest / catalog / meta / stream 解析 |
 | QuickJS 沙箱 | 已验证 | 纯 JS、fetch、超时、内存上限、无文件/进程全局 |

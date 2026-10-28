@@ -421,7 +421,15 @@ class _OnlinePageState extends State<OnlinePage> {
 
   Widget _rankingSection() {
     final progress = _rankTotal == 0 ? null : _rankDone / _rankTotal;
-    final best = SourceReport.bestEntry(_rankEntries);
+    final watchable = [
+      for (final entry in _rankEntries)
+        if (entry.watchable) entry,
+    ];
+    final broken = [
+      for (final entry in _rankEntries)
+        if (!entry.watchable) entry,
+    ];
+    final best = SourceReport.bestEntry(watchable);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -430,7 +438,7 @@ class _OnlinePageState extends State<OnlinePage> {
           title: const Text('源排行（自动检测）'),
           subtitle: Text(_rankRunning
               ? '正在检测 $_rankDone / $_rankTotal 个源'
-              : '可播放优先；点击行直接播放，右侧可复制链接'),
+              : '能看 ${watchable.length} 个 · 打不开 ${broken.length} 个'),
           trailing: _rankRunning
               ? const SizedBox(
                   width: 20,
@@ -451,70 +459,43 @@ class _OnlinePageState extends State<OnlinePage> {
               onPressed: () => playReportEntry(context, widget.settings, best),
               icon: const Icon(Icons.play_arrow),
               label: Text(
-                '播放最佳源：${best.sourceName} · ${best.quality}',
+                '播放最佳源：${best.sourceName}',
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
-        for (final entry in _rankEntries)
-          ListTile(
-            dense: true,
-            leading: Icon(
-              switch (entry.status) {
-                SourceReportStatus.reachable => Icons.check_circle_outline,
-                SourceReportStatus.unresolved => Icons.travel_explore,
-                SourceReportStatus.unreachable => Icons.error_outline,
-              },
-              color: switch (entry.status) {
-                SourceReportStatus.reachable => Colors.green,
-                SourceReportStatus.unresolved => Colors.amber,
-                SourceReportStatus.unreachable => Colors.red,
-              },
-            ),
-            title: Text('${entry.sourceName} · ${entry.title}'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${entry.statusLabel} · ${entry.quality}'
-                  '${entry.latency == null ? '' : ' · ${entry.latency!.inMilliseconds} ms'}'
-                  '${entry.detail.isEmpty ? '' : ' · ${entry.detail}'}',
-                  style: TextStyle(
-                    color: switch (entry.status) {
-                      SourceReportStatus.reachable => Colors.green,
-                      SourceReportStatus.unresolved => Colors.amber,
-                      SourceReportStatus.unreachable => Colors.red,
-                    },
-                  ),
-                ),
-                Text(
-                  entry.link,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-            isThreeLine: true,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: '播放',
-                  icon: const Icon(Icons.play_arrow),
-                  onPressed: () =>
-                      playReportEntry(context, widget.settings, entry),
-                ),
-                IconButton(
-                  tooltip: '复制链接',
-                  icon: const Icon(Icons.copy),
-                  onPressed: () => _copy(entry.link),
-                ),
-              ],
-            ),
-            onTap: () => playReportEntry(context, widget.settings, entry),
+        for (final entry in watchable) _rankRow(entry),
+        if (broken.isNotEmpty)
+          ExpansionTile(
+            leading: const Icon(Icons.block, color: Colors.red),
+            title: Text('打不开的源（${broken.length}）'),
+            subtitle: const Text('检测时连不上，换一个能看的即可'),
+            children: [for (final entry in broken) _rankRow(entry)],
           ),
       ],
     );
   }
+
+  Widget _rankRow(SourceReportEntry entry) => ListTile(
+        dense: true,
+        leading: Icon(
+          entry.watchable ? Icons.play_circle_outline : Icons.block,
+          color: entry.watchable ? Colors.green : Colors.red,
+        ),
+        title: Text('${entry.sourceName} · ${entry.title}'),
+        subtitle: Text(
+          entry.quality == '未知' || entry.quality.isEmpty
+              ? entry.verdict
+              : '${entry.verdict} · ${entry.quality}',
+          style: TextStyle(color: entry.watchable ? Colors.green : Colors.red),
+        ),
+        trailing: IconButton(
+          tooltip: '复制链接',
+          icon: const Icon(Icons.copy),
+          onPressed: () => _copy(entry.link),
+        ),
+        onTap: entry.watchable
+            ? () => playReportEntry(context, widget.settings, entry)
+            : null,
+      );
 }

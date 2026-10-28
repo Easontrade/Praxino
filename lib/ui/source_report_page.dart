@@ -80,7 +80,18 @@ class _SourceReportPageState extends State<SourceReportPage> {
     final done = runner?.done ?? 0;
     final running = runner?.running ?? false;
     final progress = total == 0 ? null : done / total;
-    final best = SourceReport.bestEntry(entries);
+    final best = SourceReport.bestEntry([
+      for (final entry in entries)
+        if (entry.watchable) entry,
+    ]);
+    final watchable = [
+      for (final entry in entries)
+        if (entry.watchable) entry,
+    ];
+    final broken = [
+      for (final entry in entries)
+        if (!entry.watchable) entry,
+    ];
     return Scaffold(
       appBar: AppBar(
         title: Text('源排行 · ${widget.query}'),
@@ -103,7 +114,7 @@ class _SourceReportPageState extends State<SourceReportPage> {
                   onPressed: () => playReportEntry(context, widget.settings, best),
                   icon: const Icon(Icons.play_arrow),
                   label: Text(
-                    '播放最佳源：${best.sourceName} · ${best.quality}',
+                    '播放最佳源：${best.sourceName}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -124,72 +135,56 @@ class _SourceReportPageState extends State<SourceReportPage> {
                 ? Center(
                     child: Text(running ? '正在解析每个源…' : '没有可检测的结果'),
                   )
-                : ListView.separated(
-                    itemCount: entries.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final entry = entries[index];
-                      final color = switch (entry.status) {
-                        SourceReportStatus.reachable => Colors.green,
-                        SourceReportStatus.unresolved => Colors.amber,
-                        SourceReportStatus.unreachable => Colors.red,
-                      };
-                      final latency = entry.latency == null
-                          ? ''
-                          : ' · ${entry.latency!.inMilliseconds} ms';
-                      final detail =
-                          entry.detail.isEmpty ? '' : ' · ${entry.detail}';
-                      return ListTile(
-                        leading: Icon(
-                          switch (entry.status) {
-                            SourceReportStatus.reachable =>
-                              Icons.check_circle_outline,
-                            SourceReportStatus.unresolved => Icons.travel_explore,
-                            SourceReportStatus.unreachable =>
-                              Icons.error_outline,
-                          },
-                          color: color,
+                : ListView(
+                    children: [
+                      for (final entry in watchable) _row(entry),
+                      if (broken.isNotEmpty)
+                        ExpansionTile(
+                          leading:
+                              const Icon(Icons.block, color: Colors.red),
+                          title: Text('打不开的源（${broken.length}）'),
+                          subtitle: const Text('检测时连不上，换一个能看的即可'),
+                          children: [for (final entry in broken) _row(entry)],
                         ),
-                        title: Text('${entry.sourceName} · ${entry.title}'),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${entry.statusLabel} · ${entry.quality}$latency$detail',
-                              style: TextStyle(color: color),
-                            ),
-                            SelectableText(
-                              entry.link,
-                              maxLines: 2,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                        isThreeLine: true,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: '播放',
-                              icon: const Icon(Icons.play_arrow),
-                              onPressed: () =>
-                                  playReportEntry(context, widget.settings, entry),
-                            ),
-                            IconButton(
-                              tooltip: '复制链接',
-                              icon: const Icon(Icons.copy),
-                              onPressed: () => _copy(entry.link),
-                            ),
-                          ],
-                        ),
-                        onTap: () =>
-                            playReportEntry(context, widget.settings, entry),
-                      );
-                    },
+                    ],
                   ),
           ),
         ],
       ),
     );
   }
+
+  Widget _row(SourceReportEntry entry) => ListTile(
+        leading: Icon(
+          entry.watchable ? Icons.play_circle_outline : Icons.block,
+          color: entry.watchable ? Colors.green : Colors.red,
+        ),
+        title: Text('${entry.sourceName} · ${entry.title}'),
+        subtitle: Text(
+          entry.quality == '未知' || entry.quality.isEmpty
+              ? entry.verdict
+              : '${entry.verdict} · ${entry.quality}',
+          style: TextStyle(color: entry.watchable ? Colors.green : Colors.red),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (entry.watchable)
+              IconButton(
+                tooltip: '播放',
+                icon: const Icon(Icons.play_arrow),
+                onPressed: () =>
+                    playReportEntry(context, widget.settings, entry),
+              ),
+            IconButton(
+              tooltip: '复制链接',
+              icon: const Icon(Icons.copy),
+              onPressed: () => _copy(entry.link),
+            ),
+          ],
+        ),
+        onTap: entry.watchable
+            ? () => playReportEntry(context, widget.settings, entry)
+            : null,
+      );
 }

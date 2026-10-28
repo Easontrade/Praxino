@@ -27,11 +27,11 @@ Future<void> main(List<String> args) async {
     client: http.Client(),
   );
   try {
-    print('search anime=$anime');
+    stdout.writeln('search anime=$anime');
     final episodes = await client.searchEpisodes(anime: anime);
-    print('episodes=${episodes.length}');
+    stdout.writeln('episodes=${episodes.length}');
     for (final episode in episodes.take(3)) {
-      print('  ${episode.episodeId} ${episode.animeTitle} / ${episode.episodeTitle}');
+      stdout.writeln('  ${episode.episodeId} ${episode.animeTitle} / ${episode.episodeTitle}');
     }
     if (episodes.isEmpty) {
       stderr.writeln('search returned no episodes');
@@ -40,11 +40,11 @@ Future<void> main(List<String> args) async {
     }
     final first = episodes.first.episodeId;
     final comments = await client.comments(first);
-    print('comments=${comments.length} episode=$first');
+    stdout.writeln('comments=${comments.length} episode=$first');
     for (final comment in comments.take(3)) {
-      print('  ${comment.time.inMilliseconds}ms ${comment.text}');
+      stdout.writeln('  ${comment.time.inMilliseconds}ms ${comment.text}');
     }
-    print('dandanplay_ok');
+    stdout.writeln('dandanplay_ok');
   } on DandanplayException catch (error) {
     stderr.writeln('dandanplay_error $error');
     exitCode = 1;

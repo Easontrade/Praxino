@@ -42,6 +42,14 @@ class SourceReportEntry {
         SourceReportStatus.unresolved => '需抓流',
         SourceReportStatus.unreachable => '连接失败',
       };
+
+  /// What the user actually wants to know: will tapping this start playback?
+  /// A player page still counts as playable, because opening it starts the
+  /// sniffer that finds the real URL.
+  bool get watchable => status != SourceReportStatus.unreachable;
+
+  /// Two-state label for the ranking list; diagnostics stay out of the UI.
+  String get verdict => watchable ? '能看' : '不能看';
 }
 
 /// One source and the search hits it returned.
@@ -93,15 +101,18 @@ class SourceReport {
         SourceReportStatus.unreachable => 2,
       };
 
-  /// The entry the "play best source" button should use: first direct stream,
-  /// otherwise the first row that can open its detail page and sniff.
+  /// The entry the "play best source" button should use: the first reachable
+  /// stream, otherwise a play page that can still be sniffed. A stream the
+  /// probe already rejected is never preferred over one that answered.
   static SourceReportEntry? bestEntry(List<SourceReportEntry> entries) {
+    SourceReportEntry? rejected;
     for (final entry in entries) {
       final stream = entry.stream;
-      if (stream != null && !looksLikeLandingPage(stream.url)) {
-        return entry;
-      }
+      if (stream == null || looksLikeLandingPage(stream.url)) continue;
+      if (entry.status == SourceReportStatus.reachable) return entry;
+      rejected ??= entry;
     }
+    if (rejected != null) return rejected;
     for (final entry in entries) {
       if (entry.adapter != null && entry.media != null) return entry;
     }

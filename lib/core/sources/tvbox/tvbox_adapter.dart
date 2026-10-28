@@ -32,7 +32,11 @@ class TvBoxAdapter implements SourceAdapter {
 
   @override
   Future<List<MediaSummary>> search(String keyword) async {
-    final items = await _get({'ac': 'list', 'wd': keyword});
+    var items = await _get({'ac': 'list', 'wd': keyword});
+    if (items.isEmpty) {
+      // A few deployments only implement keyword search through ac=detail.
+      items = await _get({'ac': 'detail', 'wd': keyword});
+    }
     return [
       for (final item in items)
         if (item.id.isNotEmpty)

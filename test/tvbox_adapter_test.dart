@@ -56,6 +56,26 @@ void main() {
     expect(groups.first.episodes.first.url, 'https://example.test/1.m3u8');
   });
 
+  test('falls back to ac=detail when ac=list has no hits', () async {
+    final client = MockClient((request) async {
+      final ac = request.url.queryParameters['ac'];
+      if (ac == 'list') return _json({'list': []});
+      expect(ac, 'detail');
+      expect(request.url.queryParameters['wd'], '示例');
+      return _json({
+        'list': [
+          {'vod_id': 7, 'vod_name': '示例剧'}
+        ]
+      });
+    });
+
+    final adapter =
+        TvBoxAdapter(api: 'https://example.test/api.php', client: client);
+    final hits = await adapter.search('示例');
+    expect(hits.single.title, '示例剧');
+    expect(hits.single.url, '7');
+  });
+
   test('parses XML responses', () async {
     const xml = '''
 <rss><list><video>

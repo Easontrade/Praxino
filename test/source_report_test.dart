@@ -81,9 +81,9 @@ void main() {
     );
   });
 
-  test('verdict is binary: player pages still count as watchable', () {
+  test('verdict is binary: only a verified stream counts as watchable', () {
     expect(_entry('a', status: SourceReportStatus.reachable).verdict, '能看');
-    expect(_entry('b', status: SourceReportStatus.unresolved).verdict, '能看');
+    expect(_entry('b', status: SourceReportStatus.unresolved).verdict, '不能看');
     expect(_entry('c', status: SourceReportStatus.unreachable).verdict, '不能看');
   });
 
@@ -125,6 +125,9 @@ void main() {
       ),
       httpClient: MockClient((request) async {
         expect(request.headers['Referer'], 'https://example.test/');
+        if (request.url.path.endsWith('.m3u8')) {
+          return http.Response('#EXTM3U\n#EXTINF:10,\nseg.ts\n', 200);
+        }
         return http.Response(
           '<script>var player={"url":"https:\\/\\/cdn.example.test\\/a\\/index.m3u8"}</script>',
           200,
@@ -139,6 +142,33 @@ void main() {
     expect(entry.stream?.url, 'https://cdn.example.test/a/index.m3u8');
     expect(entry.status, SourceReportStatus.reachable);
     expect(entry.verdict, '能看');
+  });
+
+  test('a play page without a stream is not watchable', () async {
+    final runner = SourceReportRunner(
+      query: 'FX战士久留美',
+      inputs: [
+        SourceReportInput(
+          adapter: _LandingAdapter(),
+          items: [
+            const MediaSummary(
+              sourceId: 'fake:landing',
+              title: 'FX战士久留美',
+              url: 'https://example.test/show/1',
+            ),
+          ],
+        ),
+      ],
+      probe: (stream) async => ProbeResult(url: stream.url, reachable: true),
+      httpClient: MockClient((_) async => http.Response('<html></html>', 200)),
+    );
+    addTearDown(runner.close);
+
+    await runner.run();
+
+    final entry = runner.entries.single;
+    expect(entry.status, SourceReportStatus.unresolved);
+    expect(entry.verdict, '不能看');
   });
 
   testWidgets('renders a reachable source as 能看', (tester) async {
@@ -166,7 +196,12 @@ void main() {
           reachable: true,
           latency: const Duration(milliseconds: 80),
         ),
-        httpClient: MockClient((_) async => http.Response('no', 404)),
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('.m3u8')) {
+            return http.Response('#EXTM3U\n#EXTINF:10,\nseg.ts\n', 200);
+          }
+          return http.Response('no', 404);
+        }),
       ),
     ));
     for (var i = 0; i < 50; i++) {

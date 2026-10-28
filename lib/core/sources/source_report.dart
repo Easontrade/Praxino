@@ -44,9 +44,9 @@ class SourceReportEntry {
       };
 
   /// What the user actually wants to know: will tapping this start playback?
-  /// A player page still counts as playable, because opening it starts the
-  /// sniffer that finds the real URL.
-  bool get watchable => status != SourceReportStatus.unreachable;
+  /// Only a stream that we verified counts; a play page still needs the WebView
+  /// sniffer and may never produce one, so it is not a promise we keep.
+  bool get watchable => status == SourceReportStatus.reachable;
 
   /// Two-state label for the ranking list; diagnostics stay out of the UI.
   String get verdict => watchable ? '能看' : '不能看';

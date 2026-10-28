@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
@@ -88,6 +89,13 @@ class SourceReportRunner {
   ) async {
     SourceReportEntry entry;
     final score = TitleMatcher.score(query, media.title).score;
+    // Some CMS sites ignore the keyword and answer with their newest titles.
+    // Probing those wastes requests and fills the list with unrelated shows.
+    if (score < _minTitleScore) {
+      done++;
+      onUpdate?.call();
+      return;
+    }
     try {
       final groups = await adapter
           .episodes(media)
@@ -106,82 +114,88 @@ class SourceReportRunner {
         );
       } else {
         final episode = groups.first.episodes.first;
-        PlayableStream? stream;
+        PlayableStream? resolved;
         try {
-          stream = await adapter
+          resolved = await adapter
               .resolve(episode)
               .timeout(const Duration(seconds: 12));
         } catch (_) {
-          stream = null;
+          resolved = null;
         }
-        if (stream == null ||
-            SourceReport.looksLikeLandingPage(stream.url)) {
-          final pageUrl = stream?.url ?? episode.url;
-          // Most CMS play pages keep the real m3u8 in an inline script. Reading
-          // it here turns "需抓流" into a row that plays on the first tap;
-          // the WebView sniffer stays as the fallback.
-          final extracted = await streamFromPage(pageUrl);
-          final probe = extracted == null ? null : await _probe(extracted);
-          if (extracted != null && probe != null && probe.reachable) {
-            final hls = await hlsResolution(extracted);
-            entry = SourceReportEntry(
-              sourceName: adapter.name,
-              title: media.title,
-              link: extracted.url,
-              status: SourceReportStatus.reachable,
-              quality: SourceReport.qualityOf(
-                height: extracted.height,
-                width: extracted.width,
-                title: '${media.title} ${episode.name}',
-                url: extracted.url,
-                hlsResolution: hls,
-              ),
-              matchScore: score,
-              latency: probe.latency,
-              stream: extracted,
-              adapter: adapter,
-              media: media,
-              episode: episode,
-            );
+
+        // Only a stream we verified may be labelled 能看. A direct URL is tried
+        // first; when it is a play page (some sites even append /index.m3u8 to
+        // one), the real URL is read out of the HTML and verified the same way.
+        PlayableStream? playable;
+        _Verified? verified;
+        _Verified? directFailure;
+        if (resolved != null && !SourceReport.looksLikeLandingPage(resolved.url)) {
+          final direct = await _verify(resolved);
+          if (direct.reachable) {
+            playable = resolved;
+            verified = direct;
           } else {
-            entry = SourceReportEntry(
-              sourceName: adapter.name,
-              title: media.title,
-              link: pageUrl,
-              status: SourceReportStatus.unresolved,
-              quality: '未知',
-              matchScore: score,
-              detail: stream == null
-                  ? '需要 WebView 抓流；从搜索结果打开这一集会继续解析'
-                  : '这是播放页而不是直链，需要 WebView 抓流',
-              stream: stream,
-              adapter: adapter,
-              media: media,
-              episode: episode,
-            );
+            directFailure = direct;
           }
-        } else {
-          final hls = await hlsResolution(stream);
-          final probe = await _probe(stream);
-          final quality = SourceReport.qualityOf(
-            height: stream.height,
-            width: stream.width,
-            title: '${media.title} ${episode.name}',
-            url: stream.url,
-            hlsResolution: hls,
-          );
+        }
+        if (playable == null) {
+          for (final page
+              in _pageCandidates(resolved?.url ?? episode.url)) {
+            final extracted = await streamFromPage(page);
+            if (extracted == null) continue;
+            final check = await _verify(extracted);
+            if (!check.reachable) continue;
+            playable = extracted;
+            verified = check;
+            break;
+          }
+        }
+
+        if (playable != null) {
           entry = SourceReportEntry(
             sourceName: adapter.name,
             title: media.title,
-            link: stream.url,
-            status: probe.reachable
-                ? SourceReportStatus.reachable
-                : SourceReportStatus.unreachable,
-            quality: quality,
+            link: playable.url,
+            status: SourceReportStatus.reachable,
+            quality: SourceReport.qualityOf(
+              height: playable.height,
+              width: playable.width,
+              title: '${media.title} ${episode.name}',
+              url: playable.url,
+              hlsResolution: verified?.hls,
+            ),
             matchScore: score,
-            latency: probe.latency,
-            detail: probe.reachable ? '' : '${probe.error ?? '无法连接'}',
-            stream: stream,
+            latency: verified?.latency,
+            stream: playable,
+            adapter: adapter,
+            media: media,
+            episode: episode,
+          );
+        } else if (directFailure != null) {
+          entry = SourceReportEntry(
+            sourceName: adapter.name,
+            title: media.title,
+            link: resolved!.url,
+            status: SourceReportStatus.unreachable,
+            quality: '未知',
+            matchScore: score,
+            latency: directFailure.latency,
+            detail: directFailure.detail,
+            stream: resolved,
+            adapter: adapter,
+            media: media,
+            episode: episode,
+          );
+        } else {
+          entry = SourceReportEntry(
+            sourceName: adapter.name,
+            title: media.title,
+            link: resolved?.url ?? episode.url,
+            status: SourceReportStatus.unresolved,
+            quality: '未知',
+            matchScore: score,
+            detail: '没有找到能直接播放的地址',
+            stream: resolved,
             adapter: adapter,
             media: media,
             episode: episode,
@@ -202,10 +216,69 @@ class SourceReportRunner {
       );
     }
     if (_cancelled) return;
-    entries.add(entry);
+    // The same stream reached through four reseller sites is one playable row.
+    final streamUrl = entry.stream?.url;
+    final duplicate = streamUrl != null &&
+        entries.any((existing) => existing.stream?.url == streamUrl);
+    if (!duplicate) entries.add(entry);
     done++;
     SourceReport.sort(entries);
     onUpdate?.call();
+  }
+
+  /// Below this the search hit is not the title the user asked for.
+  static const double _minTitleScore = 0.5;
+
+  /// Proves the URL can actually start playback: the probe answers and, for
+  /// HLS, the playlist parses. Finding a URL inside a play page is not enough
+  /// to promise the user that tapping it will play.
+  Future<_Verified> _verify(PlayableStream stream) async {
+    final hls = await hlsResolution(stream);
+    final playlistOk = await _playlistParses(stream);
+    final probe = await _probe(stream);
+    final reachable = probe.reachable && playlistOk;
+    final detail = !probe.reachable
+        ? '${probe.error ?? '无法连接'}'
+        : !playlistOk
+            ? '播放列表打不开'
+            : '';
+    return _Verified(
+      reachable: reachable,
+      latency: probe.latency,
+      hls: hls,
+      detail: detail,
+    );
+  }
+
+  /// A URL plus, when the site appended `/index.m3u8` to a play page, the page
+  /// itself: the manifest only exists once the page is opened in a browser.
+  static List<String> _pageCandidates(String url) {
+    final result = <String>[url];
+    final lower = url.toLowerCase();
+    if (!lower.endsWith('.m3u8') && !lower.endsWith('.mp4')) return result;
+    final uri = Uri.tryParse(url);
+    final slash = uri == null ? -1 : uri.path.lastIndexOf('/');
+    if (uri == null || slash <= 0) return result;
+    result.add(uri.replace(path: uri.path.substring(0, slash)).toString());
+    return result;
+  }
+
+  /// A valid HLS playlist may carry no RESOLUTION at all, so this checks the
+  /// manifest itself instead of reusing [hlsResolution].
+  Future<bool> _playlistParses(PlayableStream stream) async {
+    if (!stream.url.toLowerCase().contains('.m3u8')) return true;
+    try {
+      final response = await _http.get(
+        Uri.parse(stream.url),
+        headers: {...stream.headers, 'Range': 'bytes=0-131071'},
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode >= 400) return false;
+      return utf8
+          .decode(response.bodyBytes, allowMalformed: true)
+          .contains('#EXTM3U');
+    } catch (_) {
+      return false;
+    }
   }
 
   static const _browserUserAgent =
@@ -224,7 +297,7 @@ class SourceReportRunner {
     final headers = {'User-Agent': _browserUserAgent, 'Referer': origin};
     try {
       final response =
-          await _http.get(uri, headers: headers).timeout(const Duration(seconds: 6));
+          await _http.get(uri, headers: headers).timeout(const Duration(seconds: 10));
       if (response.statusCode >= 400) return null;
       final text = response.body.replaceAll(r'\/', '/');
       final match = RegExp(
@@ -243,7 +316,7 @@ class SourceReportRunner {
       final response = await _http.get(
         Uri.parse(stream.url),
         headers: {...stream.headers, 'Range': 'bytes=0-131071'},
-      ).timeout(const Duration(seconds: 6));
+      ).timeout(const Duration(seconds: 10));
       if (response.statusCode >= 400) return null;
       final body = response.body;
       if (!body.contains('#EXTM3U')) return null;
@@ -257,4 +330,19 @@ class SourceReportRunner {
       return null;
     }
   }
+}
+
+/// Outcome of proving a stream can start.
+class _Verified {
+  const _Verified({
+    required this.reachable,
+    required this.hls,
+    required this.detail,
+    this.latency,
+  });
+
+  final bool reachable;
+  final String? hls;
+  final String detail;
+  final Duration? latency;
 }

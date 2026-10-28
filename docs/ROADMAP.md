@@ -326,7 +326,11 @@
 
 ### M4-2 弹弹play 提供者 🟡
 
-> 🟡 部分完成：客户端/匹配/凭证/UI 完成；缺少审核通过后的真实 AppId 在线验证。
+> 🟡 部分完成：客户端/匹配/凭证/UI 完成；凭证已有两条注入路径——`release.yml` 从 GitHub Secrets
+> 读取 `DANDANPLAY_APP_ID` / `DANDANPLAY_APP_SECRET`，`tool/release_local.ps1` 从
+> `PRAXINO_DANDAN_APP_ID` / `PRAXINO_DANDAN_APP_SECRET` 读取；署名与来源说明写在 README 的致谢里。
+> 缺少用审核通过的真实 AppId 做的在线验证（需要用户在仓库里加 Secrets，实播一次）；
+> `tool/check_dandanplay.ps1` 可以不开播放器先自检凭证。
 - **目标**：本地文件和在线剧集都能匹配到弹幕。
 - **文件**：`lib/core/danmaku/dandanplay_provider.dart`（新建）、
   `lib/core/danmaku/danmaku_matcher.dart`（新建）、`lib/core/settings/settings_store.dart`（凭证）、

@@ -7,7 +7,24 @@ param(
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
-    flutter build windows --release
+    # Dandanplay credentials are build-time defines, exactly like the release
+    # workflow: they are read from the environment, base64 encoded, and never
+    # written into the repository or the build log.
+    $defines = @("--dart-define=APP_VERSION=$Version")
+    $dandanAppId = $env:PRAXINO_DANDAN_APP_ID
+    $dandanSecret = $env:PRAXINO_DANDAN_APP_SECRET
+    if (-not [string]::IsNullOrWhiteSpace($dandanAppId) -and
+        -not [string]::IsNullOrWhiteSpace($dandanSecret)) {
+        $appIdB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($dandanAppId))
+        $secretB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($dandanSecret))
+        $defines += "--dart-define=DANDANPLAY_APP_ID_B64=$appIdB64"
+        $defines += "--dart-define=DANDANPLAY_APP_SECRET_B64=$secretB64"
+        Write-Output "dandanplay_credentials=embedded"
+    } else {
+        Write-Warning 'PRAXINO_DANDAN_APP_ID / PRAXINO_DANDAN_APP_SECRET not set; the installer will ask for credentials in settings.'
+    }
+
+    flutter build windows --release @defines
     if ($LASTEXITCODE -ne 0) { throw "flutter build failed" }
 
     if (-not (Test-Path $Iscc)) {

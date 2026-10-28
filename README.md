@@ -16,7 +16,7 @@
 | 在线源：Kazumi 规则（搜索、选集） | ✅ |
 | 源排行：搜索后自动检测，一键播放最佳源 | ✅ |
 | 在线源：yt-dlp、TVBox（CMS 接口）、Stremio addon、脚本源 | ✅（真实站点需自行验证） |
-| 弹幕（弹弹play） | ✅（需要 AppId/Secret） |
+| 弹幕（[弹弹play 开放弹幕网络](https://www.dandanplay.com/open.html)） | ✅（正式构建已内置凭证，也可在设置页自填） |
 | 实时补帧（RIFE / mvtools，通过 VapourSynth） | ✅（需安装[增强包](docs/ENHANCE_PACK.md)） |
 | 离线超分 / 补帧（Real-ESRGAN、RIFE ncnn） | ✅ |
 | WebDAV / OpenList | ✅（真实服务器需自行验证） |
@@ -45,6 +45,18 @@ flutter pub get
 flutter run -d windows
 ```
 
+想在本地构建里直接内置弹幕凭证（免去用户自己填 AppId/Secret），先设置环境变量再打包：
+
+```
+$env:PRAXINO_DANDAN_APP_ID = '<AppId>'
+$env:PRAXINO_DANDAN_APP_SECRET = '<AppSecret>'
+.\tool\release_local.ps1 -Version 1.0.0
+```
+
+凭证只以 `--dart-define` 的形式在构建时注入（base64 编码，仓库里不留明文）；不设这两个变量时，
+安装包仍然可用，用户需要在设置页里自己填。凭证是否有效可以用
+`.\tool\check_dandanplay.ps1` 直接对着开放接口自检，不需要启动播放器。
+
 开发规范见 [AGENTS.md](AGENTS.md)，架构说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 致谢
@@ -52,6 +64,9 @@ flutter run -d windows
 - [mpv](https://mpv.io) 和 [media_kit](https://github.com/media-kit/media-kit)：播放内核
 - [Anime4K](https://github.com/bloc97/Anime4K)（MIT）：实时超分着色器
 - [Kazumi](https://github.com/Predidit/Kazumi)：规则格式兼容性的参考；本项目不复制其代码
+- [弹弹play 开放弹幕网络](https://www.dandanplay.com/open.html)：弹幕搜索与弹幕内容由该平台提供。
+  Praxino 是开源软件（GPL-3.0），按开放平台的接口规范接入，不转存、不再分发其弹幕库；
+  弹幕内容的著作权归原作者与弹弹play 所有。
 
 ## 许可证
 

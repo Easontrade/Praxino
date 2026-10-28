@@ -32,7 +32,9 @@
 
 **需要用户参与的**（代理不要自己做）：
 - 用户亲自看一遍界面和补帧画面（M7-2 清单）。
-- 弹弹play 审核通过后，用户把 `DANDANPLAY_APP_ID` / `DANDANPLAY_APP_SECRET` 加到 GitHub Secrets。
+- 弹弹play 审核通过后，用户把 `DANDANPLAY_APP_ID` / `DANDANPLAY_APP_SECRET` 加到 GitHub Secrets
+  （`release.yml` 会用 `--dart-define` 注入；本地打包用 `PRAXINO_DANDAN_APP_ID` /
+  `PRAXINO_DANDAN_APP_SECRET`）。加完先用 `tool/check_dandanplay.ps1` 验证凭证能过签名，再实播。
 - OpenSubtitles 真实账号下载、3 个私有源实播（M3-3）。
 - 真实 WebDAV / Jellyfin 服务器、Whisper 模型和 DeepSeek API Key。
 - 推送 GitHub、第一次正式发布打 tag（M6-2），都必须用户同意。
